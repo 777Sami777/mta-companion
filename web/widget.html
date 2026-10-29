@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>4Life Companion · widżet</title>
+<link rel="stylesheet" href="app.css">
+<style>
+body{display:block;height:auto;padding:12px;overflow:hidden}
+.w{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.w .stat{padding:10px 12px}
+.w .stat b{font-size:22px}
+.w .wide{grid-column:1/-1}
+</style>
+</head>
+<body>
+<div class="w">
+  <div class="stat"><b id="w-sess">—</b><span>Sesja</span></div>
+  <div class="stat"><b id="w-earn">—</b><span>Zarobek w sesji</span></div>
+  <div class="stat"><b id="w-bonus">—</b><span>Do bonusu</span></div>
+  <div class="stat"><b id="w-friends">—</b><span>Znajomi online</span></div>
+</div>
+<script>
+// Ten sam Python co w głównym oknie; odświeżanie co 30 s (logi MTA dopisują się na bieżąco).
+const $ = s => document.querySelector(s);
+const dur = s => { s = Math.max(0, Math.round(s / 60)); return s >= 60 ? `${Math.floor(s / 60)} h ${s % 60} min` : `${s} min`; };
+async function tick() {
+  const api = window.pywebview.api, [h, srv, user] = await Promise.all([api.history(), api.server(), api.load()]);
+  const now = Date.now() / 1000, last = h.sessions.at(-1), inGame = last && now - last.end < 120;
+  const earn = inGame ? h.events.filter(e => (e.t === "pay" || e.t === "bonus") && e.ts >= last.start).reduce((a, e) => a + e.v, 0) : 0;
+  const bonus = h.events.filter(e => e.t === "bonus").at(-1);
+  $("#w-sess").textContent = inGame ? dur(now - last.start) : "nie grasz";
+  $("#w-earn").textContent = Math.round(earn).toLocaleString("pl-PL") + " PLN";
+  $("#w-bonus").textContent = inGame && bonus && bonus.ts >= last.start ? dur(bonus.ts + 3600 - now) : "—";
+  const mine = new Set([...(user.friends || []).map(f => f.nick.toLowerCase()), ...h.events.filter(e => e.t === "friend").map(e => e.nick.toLowerCase())]);
+  (user.hidden || []).forEach(n => mine.delete(n));
+  $("#w-friends").textContent = (srv.list || []).filter(p => mine.has(String(p.nick).toLowerCase())).length;
+}
+window.addEventListener("pywebviewready", () => { tick(); setInterval(tick, 30000); });
+</script>
+</body>
+</html>

@@ -22,7 +22,7 @@ import webview
 import wiki
 
 APP_NAME = "4Life Companion"
-APP_VERSION = "1.0.1"
+APP_VERSION = "1.1.0"
 GITHUB_REPO = "777Sami777/mta-companion"  # "login/repozytorium": tu aktualizator szuka najnowszego wydania
 EXE_NAME = "4LifeCompanion.exe"
 NO_WINDOW = 0x08000000
@@ -32,6 +32,8 @@ DATA_DIR = os.path.join(APPDATA, "4LifeCompanion")
 OLD_DATA_DIR = os.path.join(APPDATA, "MTACompanion")  # nazwa z wersji 1.0.0: przenosimy historię
 HISTORY_FILE = os.path.join(DATA_DIR, "historia.json")
 USER_FILE = os.path.join(DATA_DIR, "dane.json")
+PRICE_HIST_FILE = os.path.join(DATA_DIR, "ceny_historia.json")
+PLAYERS_FILE = os.path.join(DATA_DIR, "gracze_historia.json")
 LINE = re.compile(r"^\[(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)\] \[Output\] : (.*)$")
 MONEY = re.compile(r"(\d[\d ]*(?:[.,]\d+)?) ?PLN")
 SKIP_RES = {"driveby", "4l-replace_fix"}
@@ -95,7 +97,27 @@ def classify(text):
         return {"t": "friend", "nick": m[1], "on": m[2].startswith("dołączył")}
     if "wywalony z powodu AFK" in text:
         return {"t": "afk"}
+    m = re.match(r"\* Rozpocząłeś pracę (.+?)\.?$", text)
+    if m:
+        return {"t": "job", "v": m[1]}
     return None
+
+
+AD = re.compile(r"^GO> (.+?) \((\d+)\): (.+)$")
+
+
+def parse_ads(paths):
+    """Ogłoszenia z czatu giełdy (GO>) z obecnych logów MTA, najnowsze pierwsze."""
+    ads = []
+    for path in sorted(paths, key=os.path.getmtime):
+        with open(path, encoding="utf-8", errors="replace") as f:
+            for raw in f:
+                m = LINE.match(raw.rstrip("\n"))
+                a = m and AD.match(m[2])
+                if a:
+                    ts = dt.datetime.strptime(m[1], "%Y-%m-%d %H:%M:%S").timestamp()
+                    ads.append({"ts": ts, "nick": a[1], "id": a[2], "text": a[3]})
+    return ads[::-1]
 
 
 def parse_logs(paths):
@@ -227,9 +249,15 @@ class Api:
 
     def server(self):
         try:
-            return query_server(*SERVER)
+            srv = query_server(*SERVER)
         except Exception as e:
             return {"error": str(e)}
+        # liczba graczy co ~5 minut, 14 dni wstecz: wykres godzin szczytu
+        hist = load_json(PLAYERS_FILE, [])
+        if not hist or time.time() - hist[-1][0] > 290:
+            hist = [h for h in hist if h[0] > time.time() - 14 * 86400] + [[round(time.time()), srv["players"]]]
+            save_json(PLAYERS_FILE, hist)
+        return srv
 
     def places(self):
         hq = os.path.join(CACHE, "4l-hud", "files", "map", "map_hq.jpg")
@@ -242,9 +270,44 @@ class Api:
         try:
             data = {"at": time.time(), "items": wiki.fetch_prices()}
             save_json(path, data)
-            return data
         except Exception:
-            return load_json(path, None)
+            data = load_json(path, None)
+            return data and {**data, "history": load_json(PRICE_HIST_FILE, [])}
+        # historia do wykresu: wpis tylko gdy któraś cena się zmieniła, 30 dni wstecz
+        hist = load_json(PRICE_HIST_FILE, [])
+        now = {p["id"]: p["price"] for p in data["items"]}
+        if not hist or hist[-1]["p"] != now:
+            hist = [h for h in hist if h["ts"] > time.time() - 30 * 86400] + [{"ts": data["at"], "p": now}]
+            save_json(PRICE_HIST_FILE, hist)
+        return {**data, "history": hist}
+
+    def players_history(self):
+        return load_json(PLAYERS_FILE, [])
+
+    def market(self):
+        return parse_ads(glob.glob(os.path.join(LOGS, "console.log*")))
+
+    def notify(self, title, text):
+        """Powiadomienie Windows (toast). Tekst idzie przez zmienne środowiskowe, nie wklejany w polecenie."""
+        import subprocess
+        ps = ("[Windows.UI.Notifications.ToastNotificationManager,Windows.UI.Notifications,ContentType=WindowsRuntime]>$null;"
+              "$x=[Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent(1);"
+              "$t=$x.GetElementsByTagName('text');"
+              "$t.Item(0).AppendChild($x.CreateTextNode($env:FL_T))>$null;$t.Item(1).AppendChild($x.CreateTextNode($env:FL_B))>$null;"
+              "[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($env:FL_APP).Show([Windows.UI.Notifications.ToastNotification]::new($x))")
+        env = dict(os.environ, FL_T=str(title)[:120], FL_B=str(text)[:240], FL_APP=APP_NAME)
+        subprocess.Popen(["powershell", "-NoProfile", "-Command", ps], env=env, creationflags=NO_WINDOW)
+        return True
+
+    def open_widget(self):
+        """Małe okno zawsze na wierzchu: czas sesji, zarobek, bonus, znajomi. Drugie kliknięcie zamyka."""
+        for w in webview.windows[1:]:
+            w.destroy()
+            return False
+        win = webview.create_window(APP_NAME + " · widżet", resource("web", "widget.html"), js_api=self, width=360, height=270,
+                                    on_top=True, resizable=True, background_color="#0a1424")
+        win.events.shown += lambda: dark_title_bar(win)
+        return True
 
     def wiki(self, kind):
         """Dane z wiki serwera zapamiętane na dysku na dobę; bez sieci zostaje ostatnia wersja."""
@@ -363,6 +426,8 @@ def _selftest():
     assert ev == {"t": "pay", "v": 1234.5}, ev
     assert classify("Twój znajomy Kalli_Bsk opuszcza grę.") == {"t": "friend", "nick": "Kalli_Bsk", "on": False}
     assert classify("✔ Poświęcony czas: 3 min. 20 sek.")["v"] == 200
+    assert classify("* Rozpocząłeś pracę w magazynie.") == {"t": "job", "v": "w magazynie"}
+    assert AD.match("GO> Kn1vx (220): SPRZEDAM MSK-1000 2.2").groups() == ("Kn1vx", "220", "SPRZEDAM MSK-1000 2.2")
     h = merge_history({"events": [], "sessions": []}, [{"t": "pay", "v": 1, "ts": 5}], [{"start": 1, "end": 5}])
     h = merge_history(h, [{"t": "pay", "v": 1, "ts": 5}], [{"start": 1, "end": 9}])
     assert len(h["events"]) == 1 and h["sessions"] == [{"start": 1, "end": 9}]

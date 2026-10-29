@@ -156,7 +156,7 @@ const ICON = {
 };
 // warstwa: [nazwa, kolor, ikona, domyślnie włączona]
 const LAYERS = {
-  gieldy: ["Giełdy", "#facc15", "exchange", 1], salony: ["Salony i komisy", "#fb923c", "car", 1], banki: ["Banki i urzędy", "#4ade80", "bank", 1],
+  moje: ["Moje znaczniki", "#f8fafc", "pin", 1], gieldy: ["Giełdy", "#facc15", "exchange", 1], salony: ["Salony i komisy", "#fb923c", "car", 1], banki: ["Banki i urzędy", "#4ade80", "bank", 1],
   pojazdy: ["Stacje, mechanicy, tuning", "#38bdf8", "wrench", 0], prace: ["Prace", "#f59e0b", "job", 1], frakcje: ["Frakcje", "#ef4444", "shield", 1],
   biznesy: ["Biznesy", "#c084fc", "star", 1], inne: ["Inne miejsca", "#94a3b8", "pin", 0],
   "4l-model-busstop": ["Przystanki", "#22d3ee", "bus", 0], "4l-app-eTransporter": ["Punkty eTransporter", "#f97316", "truck", 0],
@@ -181,13 +181,15 @@ async function initMap() {
   const groups = {};
   wiki.forEach(w => (groups[wikiLayer(w)] ??= []).push({x: w.x, y: w.y, name: w.name, desc: w.desc, icon: w.icon}));
   p.points.forEach(pt => (groups[pt.layer] ??= []).push({x: pt.x, y: pt.y, name: (LAYERS[pt.layer] || [pt.layer])[0], desc: pt.label}));
+  groups.moje = user.markers ??= []; // własne znaczniki: ta sama tablica co w zapisie, więc zmiany od razu się zapisują
   const names = Object.keys(LAYERS).filter(l => groups[l]).concat(Object.keys(groups).filter(l => !LAYERS[l]));
   const def = l => LAYERS[l] || [l.replace(/^4l-/, ""), "#94a3b8", "pin", 0];
   const state = user.mapLayerState ??= {}; // tylko warstwy przełączone ręcznie, reszta ma ustawienie domyślne
   const on = new Set(names.filter(l => state[l] ?? !!def(l)[3]));
   const svg = k => `<svg viewBox="0 0 24 24"><path d="${ICON[k]}"/></svg>`;
-  $("#layers").innerHTML = names.map(l => `<button class="chip ${on.has(l) ? "on" : ""}" style="--c:${def(l)[1]}" data-l="${esc(l)}">${svg(def(l)[2])}${esc(def(l)[0])} · ${groups[l].length}</button>`).join("");
-  const info = () => $("#map-info").textContent = `${wiki.length} miejsc z wiki · ${p.points.length} punktów z cache MTA · kliknij ikonę, żeby zobaczyć opis`;
+  const chips = () => $("#layers").innerHTML = names.map(l => `<button class="chip ${on.has(l) ? "on" : ""}" style="--c:${def(l)[1]}" data-l="${esc(l)}">${svg(def(l)[2])}${esc(def(l)[0])} · ${groups[l].length}</button>`).join("");
+  chips();
+  const info = () => $("#map-info").textContent = `${wiki.length} miejsc z wiki · ${p.points.length} punktów z cache MTA · kliknij ikonę, żeby zobaczyć opis · dwuklik na mapie dodaje własny znacznik`;
   const draw = () => {
     $("#pins").innerHTML = names.flatMap(l => on.has(l) ? groups[l].map((pt, i) =>
       `<button class="pin" style="--c:${def(l)[1]};left:${(pt.x + 3000) / 2}px;top:${(3000 - pt.y) / 2}px" data-p="${esc(l)}|${i}" title="${esc(pt.name)}${pt.desc ? ": " + esc(pt.desc) : ""}" aria-label="${esc(pt.name)}">${svg(def(l)[2])}${pt.icon ? `<img data-icon="${esc(pt.icon)}" alt="">` : ""}</button>`) : []).join("");
@@ -211,6 +213,21 @@ async function initMap() {
     if (!b) return;
     const [l, i] = b.dataset.p.split("|"), pt = groups[l][i];
     $("#map-info").textContent = `${pt.name}${pt.desc ? " · " + pt.desc : ""}`;
+    if (l === "moje") {
+      const del = document.createElement("button");
+      del.className = "btn small"; del.textContent = "Usuń znacznik";
+      del.onclick = () => { if (confirm(`Usunąć znacznik „${pt.name}”?`)) { groups.moje.splice(i, 1); save(); chips(); draw(); } };
+      $("#map-info").append(" ", del);
+    }
+  };
+  $("#map").ondblclick = e => {
+    if (e.target.closest("[data-p]")) return;
+    const r = $("#map-in").getBoundingClientRect(), k = r.width / 3000; // piksele mapy 3000 px = świat ±3000 jednostek
+    const px = (e.clientX - r.left) / k, py = (e.clientY - r.top) / k;
+    const name = prompt("Nazwa znacznika:");
+    if (!name) return;
+    groups.moje.push({x: px * 2 - 3000, y: 3000 - py * 2, name: name.slice(0, 60), desc: (prompt("Notatka (opcjonalnie):") || "").slice(0, 200)});
+    on.add("moje"); save(); chips(); draw();
   };
   $("#pins").onpointerdown = e => { if (e.target.closest("[data-p]")) e.stopPropagation(); }; // klik w ikonę nie zaczyna przeciągania
   draw();
@@ -250,6 +267,7 @@ async function refreshPrices() {
   $("#prices").innerHTML = d.items.map(p => `<li class="price"><span class="p-ico">${p.icon ? `<img data-icon="${esc(p.icon)}" alt="">` : ""}</span>
     <span><span class="p-name">${esc(p.name)}</span><b>${price(p.price)}</b><small>${esc(p.unit)}</small></span></li>`).join("");
   $("#prices").querySelectorAll("img[data-icon]").forEach(async i => { const src = await api.wiki_img(i.dataset.icon); if (src) i.src = src; });
+  document.dispatchEvent(new CustomEvent("prices", {detail: d}));
 }
 
 // ---------- aktualizacje ----------
@@ -284,6 +302,7 @@ async function refresh() {
   [hist, srv] = await Promise.all([api.history(), api.server()]);
   srv.list ??= [];
   renderAll();
+  document.dispatchEvent(new CustomEvent("data")); // features.js: powiadomienia, widżet
 }
 
 window.addEventListener("pywebviewready", async () => {

@@ -112,3 +112,28 @@ h2 small{font:500 12px Manrope,sans-serif;letter-spacing:0;text-transform:none;c
 .p-ico img:not([src]){visibility:hidden}
 .price b{display:block;font:700 22px/1.1 var(--d);font-variant-numeric:tabular-nums}
 .p-name,.price small{display:block;font-size:12.5px;color:var(--text-3)}
+.muted{color:var(--text-3)}
+.charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px;margin-bottom:18px}
+.chart{position:relative}
+.chart-svg{width:100%;height:auto;display:block;overflow:visible}
+.chart-svg .line{fill:none;stroke:var(--accent);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.chart-svg .axis{stroke:var(--line);stroke-width:1}
+.chart-svg .cross{stroke:var(--text-3);stroke-width:1;stroke-dasharray:3 3}
+.chart-svg circle{fill:var(--accent);stroke:var(--bg-2);stroke-width:2}
+.chart-svg .tick{fill:var(--text-3);font-size:11px}
+.chart-svg .tick.end{text-anchor:end}
+.chart-svg .tick.mid{text-anchor:middle}
+.chart-svg .bar-fill{fill:color-mix(in srgb,var(--accent) 70%,transparent)}
+.chart-svg .bar-now,.chart-svg .bar:hover .bar-fill{fill:var(--accent)}
+.tip{position:absolute;top:0;padding:5px 9px;border-radius:6px;background:var(--card);border:1px solid var(--line);font-size:12.5px;white-space:nowrap;pointer-events:none}
+.stat-mini{font-size:13px;color:var(--text-2);margin:-4px 0 8px}
+.goal-bar{height:10px;border-radius:5px;background:var(--card);overflow:hidden;margin:6px 0 10px}
+.goal-bar i{display:block;height:100%;background:var(--accent);border-radius:5px}
+select{padding:10px 12px;border-radius:6px;background:var(--card);border:1px solid var(--line);color:var(--text);font:inherit}
+.goal .row input{flex:1}
+.opt{display:flex;gap:10px;align-items:center;padding:8px 0;cursor:pointer}
+.opt input{width:18px;height:18px;accent-color:var(--accent)}
+.mt{margin-top:18px}
+.alerts{display:grid;gap:8px;margin-bottom:14px}
+.alert{display:flex;gap:10px;align-items:center}
+.alert input{min-width:0;width:140px}

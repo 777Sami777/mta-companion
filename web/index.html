@@ -13,12 +13,16 @@
   <button class="tab" data-tab="zarobki">Zarobki</button>
   <button class="tab" data-tab="sesje">Sesje</button>
   <button class="tab" data-tab="znajomi">Znajomi</button>
+  <button class="tab" data-tab="gielda">Giełda</button>
+  <button class="tab" data-tab="statystyki">Statystyki</button>
   <button class="tab" data-tab="pojazdy">Pojazdy</button>
   <button class="tab" data-tab="tuning">Tuning</button>
   <button class="tab" data-tab="prace">Prace dorywcze</button>
   <button class="tab" data-tab="mapa">Mapa</button>
   <button class="tab" data-tab="serwer">Serwer</button>
+  <button class="tab" data-tab="ustawienia">Ustawienia</button>
   <div class="upd">
+    <button class="btn small" id="widget-btn">Widżet nad grą</button>
     <button class="btn small" id="upd-btn">Sprawdź aktualizacje</button>
     <p class="local" id="upd-info" aria-live="polite"></p>
   </div>
@@ -39,6 +43,15 @@
   <section id="zarobki" class="page">
     <h1>Zarobki</h1>
     <div class="stats" id="earn-sum"></div>
+    <div class="cols">
+      <div class="panel goal"><h2>Cel zakupowy</h2>
+        <div class="row"><input type="text" id="goal-veh" list="veh-names" placeholder="Pojazd z wiki, np. Sultan" aria-label="Pojazd"><select id="goal-eng" aria-label="Silnik"></select></div>
+        <div class="row"><input type="text" id="goal-have" inputmode="numeric" placeholder="Ile masz teraz (PLN)" aria-label="Ile masz teraz w PLN"></div>
+        <div id="goal-out"></div>
+      </div>
+      <div class="panel"><h2>Serie pracy <small>wypłaty w odstępach do 20 min</small></h2><table id="earn-runs"></table></div>
+    </div>
+    <datalist id="veh-names"></datalist>
     <div class="panel"><h2>Dzień po dniu</h2><table id="earn-days"></table></div>
   </section>
 
@@ -65,6 +78,36 @@
       <span id="map-info" class="sub"></span>
     </div>
     <div id="map" tabindex="0" aria-label="Mapa San Andreas"><div id="map-in"><div id="pins"></div></div></div>
+  </section>
+
+  <section id="gielda" class="page">
+    <h1>Giełda</h1>
+    <p class="sub">Ogłoszenia z czatu giełdy (GO&gt;) zapisane w logach MTA z ostatnich dni. Przy rozpoznanym aucie widać cenę z salonu.</p>
+    <div class="row">
+      <div id="ad-kind" class="chips"><button class="chip on" style="--c:var(--accent)" data-k="">Wszystkie</button><button class="chip" style="--c:var(--accent)" data-k="sell">Sprzedam</button><button class="chip" style="--c:var(--accent)" data-k="buy">Kupię</button></div>
+      <input type="text" id="ad-q" placeholder="Szukaj: Sultan, 2.2, felgi…" aria-label="Szukaj ogłoszeń">
+    </div>
+    <p class="sub" id="ad-info"></p>
+    <div class="panel"><table id="ad-list"></table></div>
+  </section>
+
+  <section id="statystyki" class="page">
+    <h1>Statystyki</h1>
+    <h2>Ceny surowców</h2>
+    <div class="charts" id="price-charts"></div>
+    <h2>Gracze na serwerze</h2>
+    <div class="panel"><div class="sub" id="players-info"></div><div class="chart" id="players-chart"></div></div>
+  </section>
+
+  <section id="ustawienia" class="page">
+    <h1>Ustawienia</h1>
+    <div class="panel"><h2>Powiadomienia Windows</h2>
+      <label class="opt"><input type="checkbox" id="n-friends"> Znajomy wszedł do gry</label>
+      <label class="opt"><input type="checkbox" id="n-bonus"> 5 minut do bonusu godzinowego (Premium)</label>
+      <h2 class="mt">Cena surowca powyżej</h2>
+      <div class="alerts" id="n-prices"></div>
+      <button class="btn small" id="n-test">Wyślij próbne powiadomienie</button>
+    </div>
   </section>
 
   <section id="pojazdy" class="page">
@@ -103,5 +146,6 @@
 
 <script src="app.js"></script>
 <script src="wiki.js"></script>
+<script src="features.js"></script>
 </body>
 </html>
