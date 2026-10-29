@@ -197,5 +197,79 @@ $("#n-test").onclick = () => api.notify("4Life Companion", "Tak wyglądają powi
 $("#widget-btn").onclick = async () => { const open = await api.open_widget(); $("#widget-btn").textContent = open ? "Zamknij widżet" : "Widżet nad grą"; };
 
 // zakładki ładowane przy otwarciu
-const FEATURE_TABS = {gielda: renderMarket, statystyki: renderStats, zarobki: renderEarnExtra, ustawienia: () => renderSettings(lastPrices)};
+let FEATURE_TABS = {gielda: renderMarket, statystyki: renderStats, zarobki: renderEarnExtra, ustawienia: () => renderSettings(lastPrices)};
 document.querySelectorAll(".tab").forEach(b => b.addEventListener("click", () => FEATURE_TABS[b.dataset.tab]?.()));
+
+// ---------- ceny aut z ogłoszeń ----------
+const median = a => { const s = [...a].sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+async function renderCarPrices() {
+  const [hist, vehicles] = await Promise.all([api.car_prices(), wikiData("vehicles")]);
+  const by = {}, salonOf = v => { const veh = (vehicles || []).find(x => x.name === v); return veh ? minPrice(veh) : Infinity; };
+  // odrzucamy kwoty od czapy (części, ID, literówki): poza zakresem 10% – 10× ceny salonu
+  hist.filter(h => h.s).forEach(h => { const sp = salonOf(h.v); if (!isFinite(sp) || (h.p >= sp * 0.1 && h.p <= sp * 10)) (by[h.v] ??= []).push(h.p); });
+  const q = $("#ad-q").value.trim().toLowerCase();
+  const rows = Object.entries(by).filter(([v, ps]) => ps.length >= 2 && (!q || v.toLowerCase().includes(q))).sort((a, b) => b[1].length - a[1].length).slice(0, 15);
+  $("#car-prices").innerHTML = table([["Pojazd"], ["Ogłoszeń", "n"], ["Typowa cena", "n"], ["Od – do", "n"], ["W salonie", "n"]], rows.map(([v, ps]) => {
+    const veh = (vehicles || []).find(x => x.name === v), salon = veh && minPrice(veh);
+    return `<tr class="click" data-v="${esc(v)}"><td><b>${esc(v)}</b></td><td class="n">${ps.length}</td><td class="n"><b>${fmtPln(median(ps))}</b></td>
+      <td class="n">${fmtPln(Math.min(...ps))} – ${fmtPln(Math.max(...ps))}</td><td class="n">${veh && isFinite(salon) ? fmtPln(salon) : "—"}</td></tr>`;
+  }));
+}
+$("#car-prices").onclick = e => { const r = e.target.closest("[data-v]"); if (r) { $("#ad-q").value = r.dataset.v; renderMarket(); renderCarPrices(); } };
+$("#ad-q").addEventListener("input", renderCarPrices);
+
+// ---------- powiadomienia z giełdy ----------
+let lastAdTs = null;
+document.addEventListener("data", async () => {
+  const words = (settings().ads || "").split(",").map(w => w.trim().toLowerCase()).filter(Boolean);
+  if (!words.length) return;
+  const list = await api.market();
+  if (lastAdTs === null) { lastAdTs = list[0]?.ts || 0; return; } // przy starcie nie zgłaszamy starych ogłoszeń
+  list.filter(a => a.ts > lastAdTs && words.some(w => a.text.toLowerCase().includes(w))).slice(0, 3)
+    .forEach(a => api.notify(`Giełda: ${a.nick}`, a.text));
+  lastAdTs = Math.max(lastAdTs, list[0]?.ts || 0);
+  ads = list; // zakładka Giełda pokaże świeże ogłoszenia
+});
+$("#n-ads").onchange = () => { settings().ads = $("#n-ads").value; save(); };
+
+// ---------- kopia zapasowa ----------
+$("#bk-export").onclick = async () => { const p = await api.export_backup(); if (p) $("#bk-info").textContent = "Zapisano: " + p; };
+$("#bk-import").onclick = async () => {
+  if (!confirm("Wczytanie kopii zastąpi obecną historię, znajomych i ustawienia. Kontynuować?")) return;
+  const r = await api.import_backup();
+  if (r.ok) { $("#bk-info").textContent = `Wczytano ${r.files} plików, odświeżam…`; setTimeout(() => location.reload(), 800); }
+  else if (r.error) $("#bk-info").textContent = r.error;
+};
+
+// ---------- raport tygodnia jako obrazek ----------
+$("#report-btn").onclick = async () => {
+  const now = Date.now() / 1000, wk = 7 * 86400;
+  const money = hist.events.filter(e => (e.t === "pay" || e.t === "bonus") && now - e.ts < wk).reduce((a, e) => a + e.v, 0);
+  const time = hist.sessions.filter(s => now - s.start < wk).reduce((a, s) => a + s.end - s.start, 0);
+  const days = byDay().filter(d => now - d[1].ts < wk), best = days.reduce((a, d) => (d[1].pay + d[1].bonus) > (a ? a[1].pay + a[1].bonus : -1) ? d : a, null);
+  const run = workRuns().filter(r => now - r.start < wk).sort((a, b) => b.perH - a.perH)[0];
+  const c = document.createElement("canvas"), W = 900, H = 500, g = c.getContext("2d");
+  c.width = W; c.height = H;
+  g.fillStyle = "#0a1424"; g.fillRect(0, 0, W, H);
+  g.fillStyle = "#f59e0b"; g.fillRect(0, 0, 8, H);
+  g.font = "700 44px Barlow, Bahnschrift, sans-serif"; g.fillText("RAPORT TYGODNIA", 50, 80);
+  g.fillStyle = "#8d9bb3"; g.font = "500 20px Manrope, Segoe UI, sans-serif";
+  g.fillText(`${day(now - wk + 86400)} – ${day(now)} · 4Life MTA`, 50, 115);
+  const tiles = [[pln(money), "zarobione"], [dur(time), "czasu gry"], [time ? pln(money / (time / 3600)) : "—", "średnio na godzinę"],
+    [best ? pln(best[1].pay + best[1].bonus) : "—", best ? "najlepszy dzień: " + day(best[1].ts) : "najlepszy dzień"],
+    [run ? pln(run.perH) : "—", "najlepsza seria pracy / h"], [String(hist.events.filter(e => e.t === "pay" && now - e.ts < wk).length), "wypłat"]];
+  tiles.forEach(([v, l], i) => {
+    const x = 50 + (i % 3) * 275, y = 160 + Math.floor(i / 3) * 150;
+    g.fillStyle = "#0f1d33"; g.beginPath(); g.roundRect(x, y, 255, 125, 10); g.fill();
+    g.fillStyle = "#e9eff8"; g.font = "700 36px Barlow, Bahnschrift, sans-serif"; g.fillText(v, x + 20, y + 62);
+    g.fillStyle = "#8d9bb3"; g.font = "500 17px Manrope, Segoe UI, sans-serif"; g.fillText(l, x + 20, y + 98);
+  });
+  g.fillStyle = "#8d9bb3"; g.font = "500 15px Manrope, Segoe UI, sans-serif"; g.fillText("4Life Companion", 50, H - 25);
+  const url = c.toDataURL("image/png");
+  try { await navigator.clipboard.write([new ClipboardItem({"image/png": await (await fetch(url)).blob()})]); $("#report-info").textContent = "Skopiowano do schowka: wklej na Discordzie (Ctrl+V)."; } catch { $("#report-info").textContent = ""; }
+  const p = await api.save_image(url, `raport-${new Date().toLocaleDateString("sv")}.png`);
+  if (p) $("#report-info").textContent += " Zapisano: " + p;
+};
+
+FEATURE_TABS.gielda = () => { renderMarket(); renderCarPrices(); };
+FEATURE_TABS.ustawienia = () => { renderSettings(lastPrices); $("#n-ads").value = settings().ads || ""; };

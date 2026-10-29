@@ -154,14 +154,14 @@ const ICON = {
   bus: "M6 4h12v13H6zM6 11h12M8 20v-3M16 20v-3", truck: "M3 6h11v10H3zM14 9h4l3 3v4h-7", flag: "M5 21V4h12l-2 4 2 4H5",
   check: "M5 12l4 4 10-10", box: "M4 7l8-4 8 4v10l-8 4-8-4zM4 7l8 4 8-4M12 11v10", lock: "M6 11h12v9H6zM9 11V7a3 3 0 0 1 6 0v4",
 };
-// warstwa: [nazwa, kolor, ikona, domyślnie włączona]
+// warstwa: [nazwa, kolor, ikona, domyślnie włączona, ikona z wiki dla punktów z cache, gęsta: małe kropki]
 const LAYERS = {
   moje: ["Moje znaczniki", "#f8fafc", "pin", 1], gieldy: ["Giełdy", "#facc15", "exchange", 1], salony: ["Salony i komisy", "#fb923c", "car", 1], banki: ["Banki i urzędy", "#4ade80", "bank", 1],
   pojazdy: ["Stacje, mechanicy, tuning", "#38bdf8", "wrench", 0], prace: ["Prace", "#f59e0b", "job", 1], frakcje: ["Frakcje", "#ef4444", "shield", 1],
   biznesy: ["Biznesy", "#c084fc", "star", 1], inne: ["Inne miejsca", "#94a3b8", "pin", 0],
-  "4l-model-busstop": ["Przystanki", "#22d3ee", "bus", 0], "4l-app-eTransporter": ["Punkty eTransporter", "#f97316", "truck", 0],
-  "4l-skp-base": ["Stacje kontroli (SKP)", "#a78bfa", "check", 0], "4l-map-warehouse-courier": ["Kurier: magazyn", "#22c55e", "box", 0],
-  "4l-race": ["Wyścigi", "#f472b6", "flag", 0], "4l-prison": ["Więzienie (punkty)", "#ef4444", "lock", 0],
+  "4l-model-busstop": ["Przystanki", "#22d3ee", "bus", 0, null, 1], "4l-app-eTransporter": ["Punkty eTransporter", "#f97316", "truck", 0, null, 1],
+  "4l-skp-base": ["Stacje kontroli (SKP)", "#a78bfa", "check", 0, "/blips/vehicles/skp.png"], "4l-map-warehouse-courier": ["Kurier: magazyn", "#22c55e", "box", 0, "/blips/jobs/courier.png"],
+  "4l-race": ["Wyścigi", "#f472b6", "flag", 0, "/blips/other/racetrack.png"], "4l-prison": ["Więzienie (punkty)", "#ef4444", "lock", 0, "/blips/other/prison.png"],
 };
 function wikiLayer(p) {
   if (p.type.endsWith("_exchange")) return "gieldy";
@@ -180,7 +180,7 @@ async function initMap() {
   $("#map-in").prepend(img);
   const groups = {};
   wiki.forEach(w => (groups[wikiLayer(w)] ??= []).push({x: w.x, y: w.y, name: w.name, desc: w.desc, icon: w.icon}));
-  p.points.forEach(pt => (groups[pt.layer] ??= []).push({x: pt.x, y: pt.y, name: (LAYERS[pt.layer] || [pt.layer])[0], desc: pt.label}));
+  p.points.forEach(pt => (groups[pt.layer] ??= []).push({x: pt.x, y: pt.y, name: (LAYERS[pt.layer] || [pt.layer])[0], desc: pt.label, icon: (LAYERS[pt.layer] || [])[4]}));
   groups.moje = user.markers ??= []; // własne znaczniki: ta sama tablica co w zapisie, więc zmiany od razu się zapisują
   const names = Object.keys(LAYERS).filter(l => groups[l]).concat(Object.keys(groups).filter(l => !LAYERS[l]));
   const def = l => LAYERS[l] || [l.replace(/^4l-/, ""), "#94a3b8", "pin", 0];
@@ -189,10 +189,10 @@ async function initMap() {
   const svg = k => `<svg viewBox="0 0 24 24"><path d="${ICON[k]}"/></svg>`;
   const chips = () => $("#layers").innerHTML = names.map(l => `<button class="chip ${on.has(l) ? "on" : ""}" style="--c:${def(l)[1]}" data-l="${esc(l)}">${svg(def(l)[2])}${esc(def(l)[0])} · ${groups[l].length}</button>`).join("");
   chips();
-  const info = () => $("#map-info").textContent = `${wiki.length} miejsc z wiki · ${p.points.length} punktów z cache MTA · kliknij ikonę, żeby zobaczyć opis · dwuklik na mapie dodaje własny znacznik`;
+  const info = () => $("#map-info").textContent = `${wiki.length} miejsc z wiki · ${p.points.length} punktów z cache MTA · klik w ikonę: opis · klik w mapę: co jest najbliżej · dwuklik: własny znacznik`;
   const draw = () => {
     $("#pins").innerHTML = names.flatMap(l => on.has(l) ? groups[l].map((pt, i) =>
-      `<button class="pin" style="--c:${def(l)[1]};left:${(pt.x + 3000) / 2}px;top:${(3000 - pt.y) / 2}px" data-p="${esc(l)}|${i}" title="${esc(pt.name)}${pt.desc ? ": " + esc(pt.desc) : ""}" aria-label="${esc(pt.name)}">${svg(def(l)[2])}${pt.icon ? `<img data-icon="${esc(pt.icon)}" alt="">` : ""}</button>`) : []).join("");
+      `<button class="pin${def(l)[5] ? " mini" : ""}" style="--c:${def(l)[1]};left:${(pt.x + 3000) / 2}px;top:${(3000 - pt.y) / 2}px" data-p="${esc(l)}|${i}" title="${esc(pt.name)}${pt.desc ? ": " + esc(pt.desc) : ""}" aria-label="${esc(pt.name)}">${svg(def(l)[2])}${pt.icon ? `<img data-icon="${esc(pt.icon)}" alt="">` : ""}</button>`) : []).join("");
     // ikony z wiki: każda pobierana raz (potem z dysku); do czasu wczytania widać zwykłą ikonę warstwy
     $("#pins").querySelectorAll("img[data-icon]").forEach(async i => {
       const src = await api.wiki_img(i.dataset.icon);
@@ -231,12 +231,43 @@ async function initMap() {
   };
   $("#pins").onpointerdown = e => { if (e.target.closest("[data-p]")) e.stopPropagation(); }; // klik w ikonę nie zaczyna przeciągania
   draw();
-  panZoom();
+  const view = panZoom();
+
+  // szukaj na mapie: wszystkie warstwy, wynik przesuwa mapę i włącza jego warstwę
+  const all = names.flatMap(l => groups[l].map((pt, i) => ({l, i, pt})));
+  $("#map-q").oninput = () => {
+    const q = $("#map-q").value.trim().toLowerCase();
+    const hits = q.length < 2 ? [] : all.filter(h => (h.pt.name + " " + (h.pt.desc || "")).toLowerCase().includes(q)).slice(0, 8);
+    $("#map-res").innerHTML = hits.map(h => `<li><button data-go="${esc(h.l)}|${h.i}">${esc(h.pt.name)}<small>${esc(def(h.l)[0])}${h.pt.desc ? " · " + esc(h.pt.desc.slice(0, 60)) : ""}</small></button></li>`).join("");
+  };
+  $("#map-res").onclick = e => {
+    const b = e.target.closest("[data-go]");
+    if (!b) return;
+    const [l, i] = b.dataset.go.split("|"), pt = groups[l][i];
+    if (!on.has(l)) { on.add(l); state[l] = true; save(); chips(); draw(); }
+    view.focus((pt.x + 3000) / 2, (3000 - pt.y) / 2);
+    $("#map-res").innerHTML = ""; $("#map-q").value = "";
+    $("#map-info").textContent = `${pt.name}${pt.desc ? " · " + pt.desc : ""}`;
+  };
+
+  // pojedynczy klik w puste miejsce: najbliższe ważne miejsca i odległość (1 jednostka gry ≈ 1 m)
+  const NEAR = [["Stacja paliw", w => w.type === "gas"], ["Mechanik", w => w.type === "mechanic"], ["Giełda", w => w.type.endsWith("_exchange")],
+    ["Salon", w => w.type.endsWith("_dealer") || w.type === "car_used"], ["Bank", w => w.type === "bank"]];
+  $("#map").onclick = e => {
+    if (view.dragged() || e.target.closest("[data-p]")) return;
+    const r = $("#map-in").getBoundingClientRect(), k = r.width / 3000;
+    const gx = (e.clientX - r.left) / k * 2 - 3000, gy = 3000 - (e.clientY - r.top) / k * 2;
+    const m = d => d >= 1000 ? (d / 1000).toFixed(1) + " km" : Math.round(d) + " m";
+    $("#map-info").textContent = "Najbliżej: " + NEAR.map(([, test]) => {
+      const best = wiki.filter(test).map(w => [w, Math.hypot(w.x - gx, w.y - gy)]).sort((a, b) => a[1] - b[1])[0];
+      return best ? `${best[0].name} (${m(best[1])})` : "";
+    }).filter(Boolean).join(" · ");
+  };
 }
 
 function panZoom() {
   const box = $("#map"), inner = $("#map-in");
-  let s = Math.min(box.clientWidth, box.clientHeight) / 3000, x = (box.clientWidth - 3000 * s) / 2, y = (box.clientHeight - 3000 * s) / 2;
+  let s = Math.min(box.clientWidth, box.clientHeight) / 3000, x = (box.clientWidth - 3000 * s) / 2, y = (box.clientHeight - 3000 * s) / 2, moved = 0;
   const apply = () => { inner.style.transform = `translate(${x}px,${y}px) scale(${s})`; inner.style.setProperty("--inv", Math.min(8, Math.max(0.5, 0.9 / s))); }; // --inv: ikony mają stały rozmiar na ekranie
   box.onwheel = e => {
     e.preventDefault();
@@ -245,9 +276,10 @@ function panZoom() {
     x = mx - (mx - x) * ns / s; y = my - (my - y) * ns / s; s = ns; apply();
   };
   box.onpointerdown = e => {
-    const sx = e.clientX - x, sy = e.clientY - y;
+    const sx = e.clientX - x, sy = e.clientY - y, x0 = e.clientX, y0 = e.clientY;
+    moved = 0;
     box.classList.add("drag"); box.setPointerCapture(e.pointerId);
-    box.onpointermove = m => { x = m.clientX - sx; y = m.clientY - sy; apply(); };
+    box.onpointermove = m => { x = m.clientX - sx; y = m.clientY - sy; moved = Math.max(moved, Math.hypot(m.clientX - x0, m.clientY - y0)); apply(); };
     box.onpointerup = () => { box.onpointermove = null; box.classList.remove("drag"); };
   };
   box.onkeydown = e => {
@@ -255,6 +287,10 @@ function panZoom() {
     if (d) { x += d[0]; y += d[1]; apply(); e.preventDefault(); }
   };
   apply();
+  return {
+    dragged: () => moved > 5, // klik po przeciągnięciu mapy to nie klik
+    focus(px, py) { s = Math.max(s, 0.8); x = box.clientWidth / 2 - px * s; y = box.clientHeight / 2 - py * s; apply(); },
+  };
 }
 
 // ---------- ceny surowców (forum serwera) ----------

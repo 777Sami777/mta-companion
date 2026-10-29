@@ -20,6 +20,15 @@
         ],
         "createdAt": "2026-10-29T17:15:44.145Z",
         "reason": "Claude: map pin icon img is hidden by CSS until JS sets src from data-icon"
+      },
+      {
+        "rule": "gray-on-color",
+        "value": "*",
+        "files": [
+          "web/index.html"
+        ],
+        "createdAt": "2026-10-29T17:48:21.796Z",
+        "reason": "Claude: Giełda filter chips carry --c inline but only use it as background when .on (text then #111); inactive chips are gray on dark card"
       }
     ]
   }

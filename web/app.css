@@ -137,3 +137,15 @@ select{padding:10px 12px;border-radius:6px;background:var(--card);border:1px sol
 .alerts{display:grid;gap:8px;margin-bottom:14px}
 .alert{display:flex;gap:10px;align-items:center}
 .alert input{min-width:0;width:140px}
+/* gęste warstwy (setki punktów): małe kropki zamiast odznak, żeby nie zasłaniały mapy */
+.pin.mini{width:8px;height:8px;margin:-4px 0 0 -4px;border-width:1px;transform:scale(calc(var(--inv,1) * .6))}
+.pin.mini svg{display:none}
+.map-search{position:relative;flex:0 0 280px}
+.map-search input{width:100%;min-width:0}
+#map-res{position:absolute;z-index:5;left:0;right:0;top:100%;list-style:none;margin:4px 0 0;padding:0;background:var(--bg-2);border:1px solid var(--line);border-radius:6px;overflow:hidden}
+#map-res:empty{display:none}
+#map-res button{display:block;width:100%;text-align:left;padding:8px 12px}
+#map-res button:hover,#map-res button:focus-visible{background:var(--card)}
+#map-res small{display:block;color:var(--text-3);font-size:12px}
+tr.click{cursor:pointer}
+tr.click:hover td{background:var(--card)}

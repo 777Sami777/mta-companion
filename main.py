@@ -22,7 +22,7 @@ import webview
 import wiki
 
 APP_NAME = "4Life Companion"
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.2.0"
 GITHUB_REPO = "777Sami777/mta-companion"  # "login/repozytorium": tu aktualizator szuka najnowszego wydania
 EXE_NAME = "4LifeCompanion.exe"
 NO_WINDOW = 0x08000000
@@ -34,6 +34,9 @@ HISTORY_FILE = os.path.join(DATA_DIR, "historia.json")
 USER_FILE = os.path.join(DATA_DIR, "dane.json")
 PRICE_HIST_FILE = os.path.join(DATA_DIR, "ceny_historia.json")
 PLAYERS_FILE = os.path.join(DATA_DIR, "gracze_historia.json")
+CAR_PRICES_FILE = os.path.join(DATA_DIR, "ceny_aut.json")
+# dane gracza do kopii zapasowej (bez pobieranych z wiki, które da się odtworzyć)
+BACKUP_FILES = ("dane.json", "historia.json", "ceny_historia.json", "gracze_historia.json", "ceny_aut.json")
 LINE = re.compile(r"^\[(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)\] \[Output\] : (.*)$")
 MONEY = re.compile(r"(\d[\d ]*(?:[.,]\d+)?) ?PLN")
 SKIP_RES = {"driveby", "4l-replace_fix"}
@@ -118,6 +121,31 @@ def parse_ads(paths):
                     ts = dt.datetime.strptime(m[1], "%Y-%m-%d %H:%M:%S").timestamp()
                     ads.append({"ts": ts, "nick": a[1], "id": a[2], "text": a[3]})
     return ads[::-1]
+
+
+AD_PRICE = re.compile(r"(?<![\w.,])(\d+(?:[.,]\d+)?)\s*(kk|mln|k)(?![a-ząćęłńóśźż])", re.I)
+AD_SELL = re.compile(r"\b(s/?w|sell|sprzedam|sprzedaje|sprzedaż)\b|\[s", re.I)
+
+
+def ad_price(text):
+    """Pierwsza kwota w ogłoszeniu: 54k = 54 000, 1.2kk / 1,2 mln = 1 200 000. Same liczby pomijamy (to zwykle ID)."""
+    m = AD_PRICE.search(text)
+    if not m:
+        return None
+    return round(float(m[1].replace(",", ".")) * (1000 if m[2].lower() == "k" else 1_000_000))
+
+
+def priced_ads(ads, vehicles):
+    """Ogłoszenia z rozpoznanym pojazdem z wiki i kwotą: materiał na historię cen aut z giełdy."""
+    pats = [(v["name"], re.compile(r"(?<!\w)" + re.escape(v["name"]) + r"(?!\w)", re.I))
+            for v in sorted(vehicles, key=lambda v: -len(v["name"]))]
+    out = []
+    for a in ads:
+        p = ad_price(a["text"])
+        name = p and next((n for n, rx in pats if rx.search(a["text"])), None)
+        if name:
+            out.append({"ts": a["ts"], "v": name, "p": p, "s": bool(AD_SELL.search(a["text"])), "nick": a["nick"]})
+    return out
 
 
 def parse_logs(paths):
@@ -287,6 +315,58 @@ class Api:
     def market(self):
         return parse_ads(glob.glob(os.path.join(LOGS, "console.log*")))
 
+    def car_prices(self):
+        """Ceny aut z ogłoszeń: dopisywane do własnej historii (logi MTA trzymają tylko 2 dni), 60 dni wstecz."""
+        vehicles = (load_json(os.path.join(DATA_DIR, "wiki_vehicles.json"), {}) or {}).get("data") or self.wiki("vehicles") or []
+        hist = load_json(CAR_PRICES_FILE, [])
+        seen = {(h["ts"], h["v"], h["p"]) for h in hist}
+        new = [x for x in priced_ads(self.market(), vehicles) if (x["ts"], x["v"], x["p"]) not in seen]
+        if new:
+            hist = sorted([h for h in hist if h["ts"] > time.time() - 60 * 86400] + new, key=lambda h: h["ts"])
+            save_json(CAR_PRICES_FILE, hist)
+        return hist
+
+    # ---------- kopia zapasowa i zapis obrazka ----------
+    def _dialog(self, kind, name, types):
+        r = webview.windows[0].create_file_dialog(kind, save_filename=name, file_types=types)
+        return (r if isinstance(r, str) else r[0]) if r else None
+
+    def export_backup(self):
+        import zipfile
+        path = self._dialog(webview.SAVE_DIALOG, f"4life-companion-{dt.date.today()}.zip", ("Kopia zapasowa (*.zip)",))
+        if not path:
+            return False
+        with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
+            for name in BACKUP_FILES:
+                if os.path.isfile(os.path.join(DATA_DIR, name)):
+                    z.write(os.path.join(DATA_DIR, name), name)
+        return path
+
+    def import_backup(self):
+        """Przywraca tylko znane pliki danych z ZIP-a; każdy musi być poprawnym JSON-em, inaczej nic nie jest zmieniane."""
+        import zipfile
+        path = self._dialog(webview.OPEN_DIALOG, "", ("Kopia zapasowa (*.zip)",))
+        if not path:
+            return {"ok": False}
+        try:
+            with zipfile.ZipFile(path) as z:
+                files = {n: json.loads(z.read(n).decode("utf-8")) for n in z.namelist() if n in BACKUP_FILES}
+        except (OSError, ValueError, zipfile.BadZipFile):
+            return {"ok": False, "error": "To nie jest kopia zapasowa 4Life Companion"}
+        if not files:
+            return {"ok": False, "error": "W pliku nie ma danych aplikacji"}
+        for name, data in files.items():
+            save_json(os.path.join(DATA_DIR, name), data)
+        return {"ok": True, "files": len(files)}
+
+    def save_image(self, data_url, name):
+        path = self._dialog(webview.SAVE_DIALOG, name, ("Obraz PNG (*.png)",))
+        if not path or not str(data_url).startswith("data:image/png;base64,"):
+            return False
+        with open(path, "wb") as f:
+            f.write(base64.b64decode(data_url.split(",", 1)[1]))
+        return path
+
     def notify(self, title, text):
         """Powiadomienie Windows (toast). Tekst idzie przez zmienne środowiskowe, nie wklejany w polecenie."""
         import subprocess
@@ -436,6 +516,10 @@ def _selftest():
     q = parse_ase(pkt)
     assert q["players"] == 2 and q["list"] == [{"nick": "Ala", "id": "1", "ping": "12", "joined": 1700000000}], q
     wiki.selftest()
+    assert [ad_price(t) for t in ("Blade 1.6 54k ID", "do 1.2kk", "1,5 mln", "ID 147780", "-30kid")] == [54000, 1200000, 1500000, None, None]
+    pa = priced_ads([{"ts": 1, "nick": "a", "text": "[S/W] Sultan RS 2.2 450k"}, {"ts": 2, "nick": "b", "text": "kupie sultan do 300k"}],
+                    [{"name": "Sultan"}, {"name": "Sultan RS"}])
+    assert [(x["v"], x["p"], x["s"]) for x in pa] == [("Sultan RS", 450000, True), ("Sultan", 300000, False)], pa
     assert version_tuple("v1.10.0") > version_tuple("1.9.3") and version_tuple("1.0") == (1, 0)
     print("selftest ok")
 

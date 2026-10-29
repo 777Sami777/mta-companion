@@ -43,6 +43,7 @@
   <section id="zarobki" class="page">
     <h1>Zarobki</h1>
     <div class="stats" id="earn-sum"></div>
+    <div class="row"><button class="btn primary" id="report-btn">Raport tygodnia (obrazek)</button><span class="sub" id="report-info" aria-live="polite"></span></div>
     <div class="cols">
       <div class="panel goal"><h2>Cel zakupowy</h2>
         <div class="row"><input type="text" id="goal-veh" list="veh-names" placeholder="Pojazd z wiki, np. Sultan" aria-label="Pojazd"><select id="goal-eng" aria-label="Silnik"></select></div>
@@ -74,6 +75,7 @@
 
   <section id="mapa" class="page">
     <div class="map-tools">
+      <div class="map-search"><input type="text" id="map-q" placeholder="Szukaj na mapie: giełda, SAMD, mechanik…" aria-label="Szukaj na mapie"><ul id="map-res"></ul></div>
       <div id="layers" class="chips"></div>
       <span id="map-info" class="sub"></span>
     </div>
@@ -87,6 +89,7 @@
       <div id="ad-kind" class="chips"><button class="chip on" style="--c:var(--accent)" data-k="">Wszystkie</button><button class="chip" style="--c:var(--accent)" data-k="sell">Sprzedam</button><button class="chip" style="--c:var(--accent)" data-k="buy">Kupię</button></div>
       <input type="text" id="ad-q" placeholder="Szukaj: Sultan, 2.2, felgi…" aria-label="Szukaj ogłoszeń">
     </div>
+    <div class="panel"><h2>Ceny aut z ogłoszeń <small>sprzedaż, ostatnie 60 dni · kliknij auto, żeby zobaczyć jego ogłoszenia</small></h2><table id="car-prices"></table></div>
     <p class="sub" id="ad-info"></p>
     <div class="panel"><table id="ad-list"></table></div>
   </section>
@@ -106,7 +109,15 @@
       <label class="opt"><input type="checkbox" id="n-bonus"> 5 minut do bonusu godzinowego (Premium)</label>
       <h2 class="mt">Cena surowca powyżej</h2>
       <div class="alerts" id="n-prices"></div>
+      <h2 class="mt">Ogłoszenia na giełdzie</h2>
+      <p class="sub">Powiadomienie, gdy w czacie giełdy pojawi się ogłoszenie z jednym z tych słów (oddziel przecinkami).</p>
+      <div class="row"><input type="text" id="n-ads" placeholder="np. sultan, infernus, felgi" aria-label="Słowa do powiadomień z giełdy"></div>
       <button class="btn small" id="n-test">Wyślij próbne powiadomienie</button>
+    </div>
+    <div class="panel"><h2>Kopia zapasowa</h2>
+      <p class="sub">Historia gry, zarobki, znajomi, znaczniki, ceny i ustawienia w jednym pliku ZIP, np. do przeniesienia na inny komputer.</p>
+      <div class="row"><button class="btn primary" id="bk-export">Zapisz kopię…</button><button class="btn small" id="bk-import">Wczytaj kopię…</button></div>
+      <p class="sub" id="bk-info" aria-live="polite"></p>
     </div>
   </section>
 

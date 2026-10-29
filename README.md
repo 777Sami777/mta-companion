@@ -12,8 +12,11 @@ Darmowa aplikacja na Windows dla graczy serwera **4Life MTA**: sesje, zarobki, z
 | **Zarobki / Sesje** | Zarobki dzień po dniu, zarobek na godzinę, lista sesji z długością i zarobkiem |
 | **Znajomi** | Lista uzupełniana z gry, status online i czas sesji, notatki |
 | **Pojazdy / Tuning / Prace dorywcze** | Dane z wiki serwera: ceny, salony, prędkości, części z kosztem, zarobki na poziom |
-| **Mapa** | Giełdy, salony, prace, frakcje i inne miejsca z ikonami |
+| **Mapa** | Giełdy, salony, prace, frakcje z ikonami, wyszukiwarka, najbliższe miejsca, własne znaczniki |
 | **Serwer** | Gracze online z wyszukiwarką |
+| **Giełda** | Ogłoszenia z czatu giełdy, ceny aut z ogłoszeń w porównaniu z salonem, powiadomienia o wybranych autach |
+| **Statystyki** | Historia cen surowców i godziny szczytu serwera |
+| **Ustawienia** | Powiadomienia Windows, kopia zapasowa danych |
 
 ## Bezpieczeństwo
 
