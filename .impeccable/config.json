@@ -1,0 +1,26 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "broken-image",
+        "value": "*",
+        "files": [
+          "web/wiki.js"
+        ],
+        "createdAt": "2026-10-29T17:11:37.498Z",
+        "reason": "Claude: lazy-loaded images, src is set from data-img when visible"
+      },
+      {
+        "rule": "broken-image",
+        "value": "*",
+        "files": [
+          "web/app.js"
+        ],
+        "createdAt": "2026-10-29T17:15:44.145Z",
+        "reason": "Claude: map pin icon img is hidden by CSS until JS sets src from data-icon"
+      }
+    ]
+  }
+}
