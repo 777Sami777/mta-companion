@@ -12,7 +12,7 @@ Darmowa aplikacja na Windows dla graczy serwera **4Life MTA**: sesje, zarobki, z
 | **Zarobki / Sesje** | Zarobki dzień po dniu, zarobek na godzinę, lista sesji z długością i zarobkiem |
 | **Znajomi** | Lista uzupełniana z gry, status online i czas sesji, notatki |
 | **Pojazdy / Tuning / Prace dorywcze** | Dane z wiki serwera: ceny, salony, prędkości, części z kosztem, zarobki na poziom |
-| **Mapa** | Giełdy, salony, prace, frakcje z ikonami, wyszukiwarka, najbliższe miejsca, własne znaczniki |
+| **Mapa** | Giełdy, salony, prace, frakcje z ikonami, wyszukiwarka, najbliższe miejsca, własne znaczniki, **trasa po drogach z listą zakrętów** (też w widżecie nad grą) |
 | **Serwer** | Gracze online z wyszukiwarką |
 | **Giełda** | Ogłoszenia z czatu giełdy, ceny aut z ogłoszeń w porównaniu z salonem, powiadomienia o wybranych autach |
 | **Statystyki** | Historia cen surowców i godziny szczytu serwera |
@@ -22,7 +22,8 @@ Darmowa aplikacja na Windows dla graczy serwera **4Life MTA**: sesje, zarobki, z
 
 ## Bezpieczeństwo
 
-- Aplikacja **nie ingeruje w grę** i nie czyta jej pamięci. Korzysta tylko z logów i cache, które MTA samo zapisuje na dysku, publicznego statusu serwera i publicznej wiki 4Life.
+- Aplikacja **nie ingeruje w grę** i nie czyta jej pamięci. Korzysta tylko z logów i cache, które MTA samo zapisuje na dysku, plików GTA SA z dysku (sieć dróg do wyznaczania trasy), publicznego statusu serwera i publicznej wiki 4Life.
+- Dlatego trasa nie śledzi Twojej pozycji na żywo: to wymagałoby czytania pamięci gry, za co na 4Life grozi ban.
 - Twoje dane zostają na Twoim komputerze (`%APPDATA%\4LifeCompanion`).
 - Grafiki i dane serwera są czytane z Twojego cache MTA i wiki, nie są dołączone do programu.
 - To projekt fanowski, niezwiązany z 4Life MTA.

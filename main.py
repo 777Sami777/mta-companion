@@ -14,15 +14,17 @@ import base64
 import os
 import re
 import socket
+from struct import error as struct_error
 import sys
 import time
 
 import webview
 
+import roads
 import wiki
 
 APP_NAME = "4Life Companion"
-APP_VERSION = "1.4.0"
+APP_VERSION = "1.5.0"
 GITHUB_REPO = "777Sami777/mta-companion"  # "login/repozytorium": tu aktualizator szuka najnowszego wydania
 EXE_NAME = "4LifeCompanion.exe"
 NO_WINDOW = 0x08000000
@@ -42,6 +44,16 @@ MONEY = re.compile(r"(\d[\d ]*(?:[.,]\d+)?) ?PLN")
 SKIP_RES = {"driveby", "4l-replace_fix"}
 # punkty w skryptach: {x, y, z, ...}, --komentarz
 POINT = re.compile(r"\{\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)[^}\n]*\}[^\n]*?(?:--\s*(.*))?$", re.M)
+
+
+def gta_dir():
+    """Folder GTA SA, którego używa MTA (z rejestru instalatora MTA)."""
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Multi Theft Auto: San Andreas All\Common") as k:
+            return winreg.QueryValueEx(k, "GTA:SA Path")[0]
+    except OSError:
+        return None
 
 
 def mta_dir():
@@ -431,10 +443,39 @@ class Api:
         for w in webview.windows[1:]:
             w.destroy()
             return False
-        win = webview.create_window(APP_NAME + " · widżet", resource("web", "widget.html"), js_api=self, width=360, height=330,
+        win = webview.create_window(APP_NAME + " · widżet", resource("web", "widget.html"), js_api=self, width=380, height=620,
                                     on_top=True, resizable=True, background_color="#0a1424")
         win.events.shown += lambda: dark_title_bar(win)
         return True
+
+    # ---------- trasa po drogach (sieć dróg z plików GTA SA) ----------
+    def route(self, x1, y1, x2, y2):
+        if not hasattr(self, "_roads"):
+            img = os.path.join(gta_dir() or "", "models", "gta3.img")
+            try:
+                self._roads = roads.build_graph(img)
+            except (OSError, ValueError, struct_error):
+                self._roads = None
+        if not self._roads:
+            return {"error": "Nie znaleziono plików GTA San Andreas (models/gta3.img), z których bierzemy sieć dróg."}
+        path = roads.route(self._roads, (float(x1), float(y1)), (float(x2), float(y2)))
+        if not path:
+            return {"error": "Nie znalazłem drogi między tymi punktami (np. wyspa albo teren bez dróg)."}
+        length = sum(((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** 0.5 for a, b in zip(path, path[1:]))
+        self._last_route = {"path": path, "length": round(length), "turns": roads.directions(path), "at": time.time()}
+        return self._last_route
+
+    def current_route(self):
+        """Ostatnio wyznaczona trasa (dla widżetu nad grą) albo None."""
+        return getattr(self, "_last_route", None)
+
+    def clear_route(self):
+        self._last_route = None
+        return True
+
+    def map_image(self):
+        hq = os.path.join(CACHE, "4l-hud", "files", "map", "map_hq.jpg")
+        return map_data_url(hq)
 
     # ---------- czat i zrzuty ekranu ----------
     def chat(self, q="", kind=""):
@@ -651,6 +692,7 @@ def _selftest():
     q = parse_ase(pkt)
     assert q["players"] == 2 and q["list"] == [{"nick": "Ala", "id": "1", "ping": "12", "joined": 1700000000}], q
     wiki.selftest()
+    roads.selftest()
     assert [ad_price(t) for t in ("Blade 1.6 54k ID", "do 1.2kk", "1,5 mln", "ID 147780", "-30kid")] == [54000, 1200000, 1500000, None, None]
     pa = priced_ads([{"ts": 1, "nick": "a", "text": "[S/W] Sultan RS 2.2 450k"}, {"ts": 2, "nick": "b", "text": "kupie sultan do 300k"}],
                     [{"name": "Sultan"}, {"name": "Sultan RS"}])
@@ -744,7 +786,9 @@ def main():
         start_tray(api)
         start_hotkeys(api)
 
-    webview.start(on_start, private_mode=False, storage_path=os.path.join(DATA_DIR, "webview"))
+    # private_mode: bez trwałej pamięci podręcznej WebView2, inaczej po aktualizacji okno potrafiło pokazać starą stronę.
+    # Dane aplikacji i tak trzyma Python w DATA_DIR, nie przeglądarka.
+    webview.start(on_start, private_mode=True)
 
 
 if __name__ == "__main__":

@@ -5,11 +5,15 @@
 <title>4Life Companion · widżet</title>
 <link rel="stylesheet" href="app.css">
 <style>
-body{display:block;height:auto;padding:12px;overflow:hidden}
+body{display:block;height:auto;padding:12px}
 .w{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .w .stat{padding:10px 12px}
 .w .stat b{font-size:22px}
 .w .wide{grid-column:1/-1}
+body{overflow:auto}
+#w-route h2{margin:12px 0 6px}
+#w-map{width:100%;height:auto;display:block;border-radius:8px;border:1px solid var(--line)}
+#w-turns{margin:8px 0 0;padding-left:22px;font-size:13.5px;display:grid;gap:3px}
 </style>
 </head>
 <body>
@@ -20,6 +24,11 @@ body{display:block;height:auto;padding:12px;overflow:hidden}
   <div class="stat"><b id="w-friends">—</b><span>Znajomi online</span></div>
   <div class="stat wide" id="w-goal" hidden><span id="w-goal-t"></span><div class="goal-bar"><i id="w-goal-bar"></i></div></div>
 </div>
+<section id="w-route" hidden>
+  <h2 id="w-route-t">Trasa</h2>
+  <canvas id="w-map" width="712" height="440" aria-label="Minimapa trasy od startu do celu"></canvas>
+  <ol id="w-turns"></ol>
+</section>
 <script>
 // Ten sam Python co w głównym oknie; odświeżanie co 30 s (logi MTA dopisują się na bieżąco).
 const $ = s => document.querySelector(s);
@@ -44,7 +53,38 @@ async function tick() {
   $("#w-goal").hidden = !goal;
   if (goal) { $("#w-goal-t").textContent = label; $("#w-goal-bar").style.width = Math.min(100, have / goal * 100) + "%"; }
 }
-window.addEventListener("pywebviewready", () => { tick(); setInterval(tick, 30000); });
+// ---------- trasa z mapy głównego okna: minimapa z obszarem od startu do celu i lista zakrętów ----------
+let routeAt = null, mapImg = null;
+const mp = ([x, y]) => [(x + 3000) / 2, (3000 - y) / 2]; // świat gry -> piksele mapy 3000×3000
+async function routeTick() {
+  const api = window.pywebview.api, r = await api.current_route();
+  $("#w-route").hidden = !r;
+  if (!r || r.at === routeAt) return;
+  routeAt = r.at;
+  if (!mapImg) {
+    const src = await api.map_image();
+    if (!src) return;
+    mapImg = new Image(); mapImg.src = src; await mapImg.decode();
+  }
+  const c = $("#w-map"), g = c.getContext("2d"), W = c.width, H = c.height, pts = r.path.map(mp);
+  // obszar trasy z marginesem, dopasowany do proporcji minimapy
+  let x0 = Math.min(...pts.map(p => p[0])) - 60, x1 = Math.max(...pts.map(p => p[0])) + 60, y0 = Math.min(...pts.map(p => p[1])) - 60, y1 = Math.max(...pts.map(p => p[1])) + 60;
+  const k = Math.max((x1 - x0) / W, (y1 - y0) / H), cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  x0 = cx - W * k / 2; y0 = cy - H * k / 2;
+  const P = ([x, y]) => [(x - x0) / k, (y - y0) / k];
+  g.fillStyle = "#5d7c94"; g.fillRect(0, 0, W, H);
+  g.drawImage(mapImg, x0, y0, W * k, H * k, 0, 0, W, H);
+  g.lineJoin = g.lineCap = "round";
+  [["#111", 12], ["#38bdf8", 7]].forEach(([col, w]) => { g.strokeStyle = col; g.lineWidth = w; g.beginPath(); pts.forEach((p, i) => g[i ? "lineTo" : "moveTo"](...P(p))); g.stroke(); });
+  const dot = (p, fill, label, text = "#111") => { const [x, y] = P(p); g.beginPath(); g.arc(x, y, 13, 0, 7); g.fillStyle = fill; g.fill(); g.lineWidth = 3; g.strokeStyle = "#111"; g.stroke(); g.fillStyle = text; g.font = "700 15px Barlow, Bahnschrift, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(label, x, y + 1); };
+  r.turns.forEach((t, i) => dot(mp(t.at), "#f8fafc", String(i + 1)));
+  dot(pts[0], "#22c55e", "A"); dot(pts.at(-1), "#ef4444", "B", "#fff");
+  const m = d => d >= 1000 ? (d / 1000).toFixed(1) + " km" : d + " m";
+  $("#w-route-t").textContent = `Trasa · ${m(r.length)}`;
+  const rest = r.length - r.turns.reduce((a, t) => a + t.dist, 0);
+  $("#w-turns").innerHTML = r.turns.map(t => `<li>Za ${m(t.dist)} w <b>${t.turn === "lewo" ? "lewo ↰" : "prawo ↱"}</b></li>`).join("") + `<li>Za ${m(Math.max(0, rest))} cel 🏁</li>`;
+}
+window.addEventListener("pywebviewready", () => { tick(); routeTick(); setInterval(tick, 30000); setInterval(routeTick, 2000); });
 </script>
 </body>
 </html>

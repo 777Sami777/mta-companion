@@ -225,6 +225,10 @@ async function initMap() {
     if (!b) return;
     const [l, i] = b.dataset.p.split("|"), pt = groups[l][i];
     $("#map-info").textContent = `${pt.name}${pt.desc ? " · " + pt.desc : ""}`;
+    const go = document.createElement("button");
+    go.className = "btn small"; go.textContent = "🏁 Jedź tutaj";
+    go.onclick = () => { routeB = [pt.x, pt.y]; if (!routeA) setMode("a"); updateRoute(); };
+    $("#map-info").append(" ", go);
     if (l === "moje") {
       const del = document.createElement("button");
       del.className = "btn small"; del.textContent = "Usuń znacznik";
@@ -267,11 +271,52 @@ async function initMap() {
     $("#map-info").textContent = `${pt.name}${pt.desc ? " · " + pt.desc : ""}`;
   };
 
+  // ---------- trasa po drogach: start i cel klikiem na mapie albo "Jedź tutaj" przy miejscu ----------
+  let routeMode = null, routeA = null, routeB = null;
+  const toMap = e => { const r = $("#map-in").getBoundingClientRect(), k = r.width / 3000; return [(e.clientX - r.left) / k * 2 - 3000, 3000 - (e.clientY - r.top) / k * 2]; };
+  const mp = ([x, y]) => [(x + 3000) / 2, (3000 - y) / 2]; // świat gry -> piksele mapy
+  const setMode = m => { routeMode = m; $("#r-start").classList.toggle("on", m === "a"); $("#r-goal").classList.toggle("on", m === "b"); $("#map").classList.toggle("picking", !!m); };
+  $("#r-start").onclick = () => setMode(routeMode === "a" ? null : "a");
+  $("#r-goal").onclick = () => setMode(routeMode === "b" ? null : "b");
+  $("#r-clear").onclick = () => { routeA = routeB = null; drawRoute(null); updateRoute(); api.clear_route(); };
+  // panel ze wskazówkami leży na mapie: jego przewijanie i klikanie nie może przesuwać ani przybliżać mapy
+  ["pointerdown", "wheel", "dblclick"].forEach(ev => $("#route-panel").addEventListener(ev, e => e.stopPropagation()));
+  async function updateRoute() {
+    const pin = (p, cls, label) => p ? `<span class="rpin ${cls}" style="left:${mp(p)[0]}px;top:${mp(p)[1]}px">${label}</span>` : "";
+    $("#route-pins").innerHTML = pin(routeA, "a", "A") + pin(routeB, "b", "B");
+    $("#r-clear").hidden = !routeA && !routeB;
+    if (!routeA || !routeB) { drawRoute(null); $("#map-info").textContent = routeA ? "Teraz ustaw cel (🏁)" : "Teraz ustaw start (📍)"; return; }
+    $("#map-info").textContent = "Wyznaczam trasę…";
+    const r = await api.route(routeA[0], routeA[1], routeB[0], routeB[1]);
+    if (r.error) { drawRoute(null); $("#map-info").textContent = r.error; return; }
+    drawRoute(r);
+  }
+  function drawRoute(r) {
+    $("#route-line").innerHTML = r ? `<polyline points="${r.path.map(p => mp(p).join(",")).join(" ")}" class="route-casing"/><polyline points="${r.path.map(p => mp(p).join(",")).join(" ")}" class="route-path"/>` : "";
+    $("#route-pins").querySelectorAll(".step").forEach(n => n.remove());
+    $("#route-panel").hidden = !r;
+    if (!r) return;
+    r.turns.forEach((t, i) => $("#route-pins").insertAdjacentHTML("beforeend", `<span class="rpin step" style="left:${mp(t.at)[0]}px;top:${mp(t.at)[1]}px">${i + 1}</span>`));
+    const m = d => d >= 1000 ? (d / 1000).toFixed(1) + " km" : d + " m";
+    const rest = r.length - r.turns.reduce((a, t) => a + t.dist, 0);
+    $("#route-panel").innerHTML = `<h2>Trasa · ${m(r.length)} · ok. ${Math.max(1, Math.round(r.length / 1000 / 80 * 60))} min przy 80 km/h</h2><ol>` +
+      r.turns.map((t, i) => `<li><button data-step="${i}">Za ${m(t.dist)} skręć w <b>${t.turn === "lewo" ? "lewo ↰" : "prawo ↱"}</b></button></li>`).join("") +
+      `<li><button data-step="end">Za ${m(Math.max(0, rest))} jesteś u celu 🏁</button></li></ol>`;
+    $("#route-panel").onclick = e => {
+      const b = e.target.closest("[data-step]");
+      if (!b) return;
+      const p = b.dataset.step === "end" ? r.path.at(-1) : r.turns[b.dataset.step].at;
+      view.focus(...mp(p), Math.max(view.scale(), 1));
+    };
+    $("#map-info").textContent = `Trasa wyznaczona po drogach z plików GTA SA · ${r.turns.length} zakrętów`;
+  }
+
   // pojedynczy klik w puste miejsce: najbliższe ważne miejsca i odległość (1 jednostka gry ≈ 1 m)
   const NEAR = [["Stacja paliw", w => w.type === "gas"], ["Mechanik", w => w.type === "mechanic"], ["Giełda", w => w.type.endsWith("_exchange")],
     ["Salon", w => w.type.endsWith("_dealer") || w.type === "car_used"], ["Bank", w => w.type === "bank"]];
   $("#map").onclick = e => {
-    if (view.dragged() || e.target.closest("[data-p]")) return;
+    if (view.dragged() || e.target.closest("[data-p],#route-panel")) return;
+    if (routeMode) { routeMode === "a" ? routeA = toMap(e) : routeB = toMap(e); setMode(null); updateRoute(); return; }
     const r = $("#map-in").getBoundingClientRect(), k = r.width / 3000;
     const gx = (e.clientX - r.left) / k * 2 - 3000, gy = 3000 - (e.clientY - r.top) / k * 2;
     const m = d => d >= 1000 ? (d / 1000).toFixed(1) + " km" : Math.round(d) + " m";

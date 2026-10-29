@@ -83,10 +83,12 @@
   <section id="mapa" class="page">
     <div class="map-tools">
       <div class="map-search"><input type="text" id="map-q" placeholder="Szukaj na mapie: giełda, SAMD, mechanik…" aria-label="Szukaj na mapie"><ul id="map-res"></ul></div>
+      <div class="route-tools"><button class="btn small" id="r-start">📍 Ustaw start</button><button class="btn small" id="r-goal">🏁 Ustaw cel</button><button class="btn small" id="r-clear" hidden>Wyczyść trasę</button></div>
       <div id="layers" class="chips"></div>
       <span id="map-info" class="sub"></span>
     </div>
-    <div id="map" tabindex="0" aria-label="Mapa San Andreas"><div id="map-in"><div id="pins"></div></div></div>
+    <div id="map" tabindex="0" aria-label="Mapa San Andreas"><div id="map-in"><svg id="route-line" viewBox="0 0 3000 3000" aria-hidden="true"></svg><div id="pins"></div><div id="route-pins"></div></div>
+      <aside id="route-panel" class="route-panel" hidden aria-live="polite"></aside></div>
   </section>
 
   <section id="gielda" class="page">

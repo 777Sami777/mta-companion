@@ -4,3 +4,4 @@ dist/
 setup_build/
 *.spec
 .impeccable/hook.cache.json
+.claude/

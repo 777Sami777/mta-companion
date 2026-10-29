@@ -179,3 +179,20 @@ html.light #map{background:#9fb6c8}
 .goals:empty{display:none}
 .goal-row{padding:12px 16px;border-radius:8px;background:var(--bg-2);border:1px solid var(--line);font-size:13.5px}
 #compare-table th{text-align:left}
+/* trasa: grubość liczona z --inv (jak ikony), bo vector-effect nie uwzględnia transformacji CSS mapy */
+#route-line{position:absolute;inset:0;width:3000px;height:3000px;pointer-events:none;overflow:visible}
+#route-line polyline{fill:none;stroke-linejoin:round;stroke-linecap:round}
+.route-casing{stroke:#111;stroke-width:calc(var(--inv,1) * 10px)}
+.route-path{stroke:#38bdf8;stroke-width:calc(var(--inv,1) * 6px)}
+#route-pins{position:absolute;inset:0;pointer-events:none}
+.rpin{position:absolute;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50%;display:grid;place-items:center;font:700 12px var(--d);color:#111;background:#38bdf8;border:2px solid #111;transform:scale(var(--inv,1))}
+.rpin.a{background:#22c55e}
+.rpin.b{background:#ef4444;color:#fff}
+.rpin.step{width:20px;height:20px;margin:-10px 0 0 -10px;font-size:11px;background:#f8fafc}
+.route-tools{display:flex;gap:6px}
+#map.picking{cursor:crosshair}
+.route-panel{position:absolute;top:10px;right:10px;width:280px;max-height:calc(100% - 20px);overflow:auto;padding:12px 14px;border-radius:8px;background:var(--bg-2);border:1px solid var(--line);box-shadow:0 10px 30px -10px rgba(0,0,0,.6);cursor:default}
+.route-panel h2{margin-bottom:8px;color:var(--text)}
+.route-panel ol{margin:0;padding-left:22px;display:grid;gap:4px;font-size:13.5px}
+.route-panel button{text-align:left;color:var(--text-2)}
+.route-panel button:hover{color:var(--text)}
