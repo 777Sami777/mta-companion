@@ -24,7 +24,7 @@ import roads
 import wiki
 
 APP_NAME = "4Life Companion"
-APP_VERSION = "1.5.0"
+APP_VERSION = "1.5.1"
 GITHUB_REPO = "777Sami777/mta-companion"  # "login/repozytorium": tu aktualizator szuka najnowszego wydania
 EXE_NAME = "4LifeCompanion.exe"
 NO_WINDOW = 0x08000000
@@ -640,30 +640,44 @@ class Api:
         bat = os.path.join(tmp, "aktualizuj.bat")
         with open(bat, "w", encoding="mbcs") as f:
             # ping zamiast timeout: bez konsoli timeout kończy się od razu
+            # czeka na zamknięcie tej kopii: proces .exe (bootloader PyInstallera) i jego Python; po 40 s zamyka je siłą
+            pids = (os.getppid(), os.getpid())
             f.write(f"""@echo off
+set LOG="{os.path.join(tmp, 'aktualizuj.log')}"
+echo start %date% %time% > %LOG%
 set n=0
 :wait
-tasklist /fi "imagename eq {name}" | find /i "{name}" >nul || goto copy
+set alive=
+for %%p in ({pids[0]} {pids[1]}) do tasklist /fi "PID eq %%p" | find /i "{name}" >nul && set alive=1
+if not defined alive goto copy
 set /a n+=1
-if %n% geq 40 taskkill /f /im {name} >nul 2>&1
+if %n% geq 40 taskkill /f /pid {pids[0]} /pid {pids[1]} >> %LOG% 2>&1
 ping -n 2 127.0.0.1 >nul
 goto wait
 :copy
-copy /y "{exe}" "{exe}.poprzednia" >nul
+copy /y "{exe}" "{exe}.poprzednia" >> %LOG% 2>&1
 set k=0
 :retry
-copy /y "{new_exe}" "{exe}" >nul && goto run
+copy /y "{new_exe}" "{exe}" >> %LOG% 2>&1 && goto run
 set /a k+=1
 if %k% geq 15 goto run
 ping -n 2 127.0.0.1 >nul
 goto retry
 :run
+echo uruchamiam >> %LOG%
 start "" "{exe}"
 """)
-        # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP: skrypt przeżywa zamknięcie aplikacji
-        subprocess.Popen(["cmd", "/c", bat], creationflags=0x00000008 | 0x00000200 | NO_WINDOW, close_fds=True)
-        threading.Timer(0.8, lambda: [w.destroy() for w in webview.windows]).start()
-        threading.Timer(5, os._exit, (0,)).start()  # na pewno zamknij proces, inaczej skrypt czeka
+        # Start przez WMI: skrypt nie jest dzieckiem aplikacji, więc Windows nie zamyka go razem z nią
+        # (zwykły Popen z wersji 1.4/1.5 ginął przy wyjściu i plik nigdy nie był podmieniany).
+        ps = ("$si=New-CimInstance -ClassName Win32_ProcessStartup -ClientOnly -Property @{ShowWindow=[uint16]0};"
+              "Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{CommandLine=$env:FL_CMD;ProcessStartupInformation=$si}|Out-Null")
+        try:
+            subprocess.run(["powershell", "-NoProfile", "-Command", ps], env=dict(os.environ, FL_CMD=f'cmd /c "{bat}"'),
+                           creationflags=NO_WINDOW, timeout=30, check=True)
+        except Exception:
+            subprocess.Popen(["cmd", "/c", bat], creationflags=0x00000008 | 0x00000200 | NO_WINDOW, close_fds=True)
+        threading.Timer(0.8, self.quit_app).start()
+        threading.Timer(4, os._exit, (0,)).start()  # na pewno zamknij proces, inaczej skrypt czeka
         return {"ok": True, "version": info["latest"]}
 
     def app_version(self):
@@ -758,9 +772,25 @@ def start_hotkeys(api):
     threading.Thread(target=loop, daemon=True).start()
 
 
+def already_running():
+    """Jedna kopia aplikacji: druga pokazuje okno pierwszej i kończy się (dwie kopie blokowały aktualizację i skróty)."""
+    import ctypes
+    k32, u32 = ctypes.windll.kernel32, ctypes.windll.user32
+    already_running.mutex = k32.CreateMutexW(None, False, "Local\\4LifeCompanion")  # trzymane do końca procesu
+    if k32.GetLastError() != 183:  # ERROR_ALREADY_EXISTS
+        return False
+    hwnd = u32.FindWindowW(None, APP_NAME)
+    if hwnd:
+        u32.ShowWindow(hwnd, 9)  # SW_RESTORE, też gdy schowane do zasobnika
+        u32.SetForegroundWindow(hwnd)
+    return True
+
+
 def main():
     if "--selftest" in sys.argv:
         return _selftest()
+    if already_running():
+        return
     if os.path.isdir(OLD_DATA_DIR) and not os.path.exists(DATA_DIR):
         os.rename(OLD_DATA_DIR, DATA_DIR)
     os.makedirs(DATA_DIR, exist_ok=True)
