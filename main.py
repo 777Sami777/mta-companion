@@ -22,7 +22,7 @@ import webview
 import wiki
 
 APP_NAME = "4Life Companion"
-APP_VERSION = "1.3.0"
+APP_VERSION = "1.4.0"
 GITHUB_REPO = "777Sami777/mta-companion"  # "login/repozytorium": tu aktualizator szuka najnowszego wydania
 EXE_NAME = "4LifeCompanion.exe"
 NO_WINDOW = 0x08000000
@@ -387,6 +387,25 @@ class Api:
             save_json(os.path.join(DATA_DIR, name), data)
         return {"ok": True, "files": len(files)}
 
+    def save_text(self, name, content):
+        """Zapis pliku tekstowego (np. CSV) przez okno "Zapisz jako"; BOM, żeby Excel dobrze pokazał polskie znaki."""
+        ext = os.path.splitext(name)[1].lstrip(".") or "txt"
+        path = self._dialog(webview.SAVE_DIALOG, name, (f"Plik {ext.upper()} (*.{ext})",))
+        if not path:
+            return False
+        with open(path, "w", encoding="utf-8-sig", newline="") as f:
+            f.write(str(content))
+        return path
+
+    def open_url(self, url):
+        """Otwiera w przeglądarce tylko adresy forum, wiki i repozytorium aplikacji."""
+        ok = ("https://mta4life.pl/", "https://wiki.mta4life.pl/", f"https://github.com/{GITHUB_REPO}", "https://discord.gg/")
+        if isinstance(url, str) and url.startswith(ok):
+            import webbrowser
+            webbrowser.open(url)
+            return True
+        return False
+
     def save_image(self, data_url, name):
         path = self._dialog(webview.SAVE_DIALOG, name, ("Obraz PNG (*.png)",))
         if not path or not str(data_url).startswith("data:image/png;base64,"):
@@ -412,7 +431,7 @@ class Api:
         for w in webview.windows[1:]:
             w.destroy()
             return False
-        win = webview.create_window(APP_NAME + " · widżet", resource("web", "widget.html"), js_api=self, width=360, height=270,
+        win = webview.create_window(APP_NAME + " · widżet", resource("web", "widget.html"), js_api=self, width=360, height=330,
                                     on_top=True, resizable=True, background_color="#0a1424")
         win.events.shown += lambda: dark_title_bar(win)
         return True
@@ -509,7 +528,7 @@ class Api:
         """Dane z wiki serwera zapamiętane na dysku na dobę; bez sieci zostaje ostatnia wersja."""
         path = os.path.join(DATA_DIR, f"wiki_{kind}.json")
         cached = load_json(path, None)
-        if cached and time.time() - cached["at"] < 86400:
+        if cached and time.time() - cached["at"] < wiki.TTL.get(kind, 86400):
             return cached["data"]
         try:
             data = wiki.FETCH[kind]()

@@ -16,6 +16,8 @@
   <button class="tab" data-tab="gielda">Giełda</button>
   <button class="tab" data-tab="statystyki">Statystyki</button>
   <button class="tab" data-tab="czat">Czat</button>
+  <button class="tab" data-tab="dziennik">Dziennik</button>
+  <button class="tab" data-tab="taryfikator">Taryfikator</button>
   <button class="tab" data-tab="zrzuty">Zrzuty ekranu</button>
   <button class="tab" data-tab="pojazdy">Pojazdy</button>
   <button class="tab" data-tab="tuning">Tuning</button>
@@ -35,17 +37,20 @@
   <section id="dzis" class="page on">
     <h1>Dziś</h1>
     <div class="stats" id="today"></div>
+    <div class="goals" id="daily-goals"></div>
     <div class="cols">
       <div class="panel"><h2>Znajomi online</h2><ul class="list" id="today-friends"></ul></div>
       <div class="panel"><h2>Ostatnie wypłaty</h2><ul class="list" id="today-pays"></ul></div>
       <div class="panel"><h2>Ceny surowców <small id="price-at"></small></h2><ul class="prices" id="prices"></ul></div>
+      <div class="panel"><h2>Ogłoszenia serwera</h2><ul class="list links" id="news"></ul></div>
+      <div class="panel"><h2>Nadchodzące wydarzenia</h2><ul class="list links" id="events"></ul></div>
     </div>
   </section>
 
   <section id="zarobki" class="page">
     <h1>Zarobki</h1>
     <div class="stats" id="earn-sum"></div>
-    <div class="row"><button class="btn primary" id="report-btn">Raport tygodnia (obrazek)</button><span class="sub" id="report-info" aria-live="polite"></span></div>
+    <div class="row"><button class="btn primary" id="report-btn">Raport tygodnia (obrazek)</button><button class="btn small" id="csv-btn">Eksport do CSV (Excel)</button><span class="sub" id="report-info" aria-live="polite"></span></div>
     <div class="cols">
       <div class="panel goal"><h2>Cel zakupowy</h2>
         <div class="row"><input type="text" id="goal-veh" list="veh-names" placeholder="Pojazd z wiki, np. Sultan" aria-label="Pojazd"><select id="goal-eng" aria-label="Silnik"></select></div>
@@ -116,6 +121,21 @@
     <div class="panel"><ul class="list chat" id="chat-list"></ul></div>
   </section>
 
+  <section id="dziennik" class="page">
+    <h1>Dziennik</h1>
+    <p class="sub">Notatki z datą: co się działo w sesji, długi, umowy, plany.</p>
+    <form id="j-form" class="j-form"><textarea id="j-text" placeholder="Co dziś się wydarzyło?" aria-label="Nowy wpis" required></textarea><button class="btn primary">Dodaj wpis</button></form>
+    <div class="row"><input type="text" id="j-q" placeholder="Szukaj w dzienniku…" aria-label="Szukaj w dzienniku"></div>
+    <ul class="journal" id="j-list"></ul>
+  </section>
+
+  <section id="taryfikator" class="page">
+    <h1>Taryfikator</h1>
+    <p class="sub">Kary serwerowe z forum 4Life. <button class="btn small" id="tar-link">Otwórz na forum</button></p>
+    <div class="row"><input type="text" id="tar-q" placeholder="Szukaj przewinienia: AFK, prędkość, helikopter…" aria-label="Szukaj przewinienia"></div>
+    <div class="panel"><table id="tar-list"></table></div>
+  </section>
+
   <section id="zrzuty" class="page">
     <h1>Zrzuty ekranu</h1>
     <div class="row"><p class="sub" id="shots-info"></p><button class="btn small" id="shots-folder">Otwórz folder</button></div>
@@ -137,10 +157,20 @@
       <label class="opt"><input type="checkbox" id="n-session"> Podsumowanie po wyjściu z gry</label>
       <h2 class="mt">Cena surowca powyżej</h2>
       <div class="alerts" id="n-prices"></div>
+      <label class="opt"><input type="checkbox" id="n-events"> Godzinę przed wydarzeniem z forum</label>
+      <h2 class="mt">Auto na giełdzie poniżej ceny</h2>
+      <p class="sub">Powiadomienie, gdy ktoś wystawi to auto za tyle albo taniej.</p>
+      <ul class="list" id="car-alerts"></ul>
+      <form class="row" id="car-alert-form"><input type="text" id="ca-veh" list="veh-names" placeholder="Pojazd, np. Sultan" aria-label="Pojazd"><input type="text" id="ca-max" inputmode="numeric" placeholder="Maks. cena, np. 300000" aria-label="Maksymalna cena"><button class="btn small">Dodaj alert</button></form>
       <h2 class="mt">Ogłoszenia na giełdzie</h2>
       <p class="sub">Powiadomienie, gdy w czacie giełdy pojawi się ogłoszenie z jednym z tych słów (oddziel przecinkami).</p>
       <div class="row"><input type="text" id="n-ads" placeholder="np. sultan, infernus, felgi" aria-label="Słowa do powiadomień z giełdy"></div>
       <button class="btn small" id="n-test">Wyślij próbne powiadomienie</button>
+    </div>
+    <div class="panel"><h2>Cele dzienne</h2>
+      <p class="sub">Paski postępu na ekranie Dziś i w widżecie. Puste pole = bez celu.</p>
+      <div class="row"><label class="alert">Czas gry <input type="text" id="g-hours" inputmode="decimal" placeholder="np. 3" aria-label="Cel: godziny gry"> h</label>
+      <label class="alert">Zarobek <input type="text" id="g-money" inputmode="numeric" placeholder="np. 20000" aria-label="Cel: zarobek"> PLN</label></div>
     </div>
     <div class="panel"><h2>Kopia zapasowa</h2>
       <p class="sub">Historia gry, zarobki, znajomi, znaczniki, ceny i ustawienia w jednym pliku ZIP, np. do przeniesienia na inny komputer.</p>
@@ -156,6 +186,7 @@
       <input type="text" id="veh-q" placeholder="Szukaj pojazdu lub salonu…" aria-label="Szukaj pojazdu">
     </div>
     <p class="sub" id="veh-info"></p>
+    <div class="panel" id="compare" hidden><h2>Porównanie <small>zaznacz do 3 pojazdów</small></h2><table id="compare-table"></table><button class="btn small" id="compare-clear">Wyczyść porównanie</button></div>
     <ul class="cards" id="veh-list"></ul>
   </section>
 
@@ -187,5 +218,6 @@
 <script src="wiki.js"></script>
 <script src="features.js"></script>
 <script src="more.js"></script>
+<script src="final.js"></script>
 </body>
 </html>

@@ -21,7 +21,7 @@ const lazyImgs = root => root.querySelectorAll("img[data-img]").forEach(i => img
 // ---------- Pojazdy ----------
 const engineList = v => Object.entries(v.engines || {});
 const vmax = v => Math.max(0, ...engineList(v).map(([, e]) => e.up1 || e.stock || 0));
-const minPrice = v => Math.min(...engineList(v).map(([, e]) => e.price ?? Infinity));
+const minPrice = v => Math.min(...engineList(v).map(([, e]) => e.price || Infinity)); // cena 0 = "Niedostępny"
 const vehImg = v => `/vehicles/${v.type}s/${v.id}_front.png`;
 let vehType = "car";
 
@@ -29,14 +29,19 @@ async function renderVehicles() {
   const list = await wikiData("vehicles");
   if (!list) { $("#veh-list").innerHTML = noData("pojazdów"); opened.delete("pojazdy"); return; }
   const types = [...new Set(list.map(v => v.type))];
-  $("#veh-types").innerHTML = types.map(t => `<button class="chip ${t === vehType ? "on" : ""}" style="--c:var(--accent)" data-t="${t}">${TYPES[t] || t} · ${list.filter(v => v.type === t).length}</button>`).join("");
+  const watch = user.watch ??= [];
+  $("#veh-types").innerHTML = types.map(t => `<button class="chip ${t === vehType ? "on" : ""}" style="--c:var(--accent)" data-t="${t}">${TYPES[t] || t} · ${list.filter(v => v.type === t).length}</button>`).join("") +
+    `<button class="chip ${vehType === "watch" ? "on" : ""}" style="--c:var(--accent)" data-t="watch">★ Obserwowane · ${watch.length}</button>`;
   const q = $("#veh-q").value.trim().toLowerCase();
-  const rows = list.filter(v => v.type === vehType && (!q || v.name.toLowerCase().includes(q) || engineList(v).some(([, e]) => (e.location || "").toLowerCase().includes(q))))
+  const rows = list.filter(v => (vehType === "watch" ? watch.includes(v.id) : v.type === vehType) && (!q || v.name.toLowerCase().includes(q) || engineList(v).some(([, e]) => (e.location || "").toLowerCase().includes(q))))
     .sort((a, b) => minPrice(a) - minPrice(b));
   $("#veh-info").textContent = `${rows.length} pojazdów · prędkości: fabryczna / po UP1 (km/h) · ceny z salonów`;
   $("#veh-list").innerHTML = rows.map(v => `<li class="card">
       <div class="card-img"><img data-img="${esc(vehImg(v))}" alt="${esc(v.name)}"></div>
-      <div class="card-body"><b>${esc(v.name)}</b>
+      <div class="card-body"><div class="veh-head"><b>${esc(v.name)}</b>
+        <button class="btn small ${watch.includes(v.id) ? "on" : ""}" data-watch="${v.id}" aria-pressed="${watch.includes(v.id)}" title="Obserwuj">${watch.includes(v.id) ? "★" : "☆"}</button>
+        <button class="btn small ${(window.compareIds || []).includes(v.id) ? "on" : ""}" data-cmp="${v.id}">Porównaj</button></div>
+      ${typeof marketLine === "function" ? marketLine(v) : ""}
       <div class="meta">${[v.drive, v.seats && v.seats + " miejsca", vmax(v) && "do " + vmax(v) + " km/h"].filter(Boolean).map(esc).join(" · ")}</div>
       <table class="mini">${engineList(v).map(([name, e]) => `<tr><td>${esc(name)}</td><td class="n">${e.stock ? e.stock + " / " + e.up1 : ""}</td><td class="n">${e.price ? fmtPln(e.price) : ""}</td><td>${esc(e.location || "")}</td></tr>`).join("")}</table></div></li>`).join("")
     || `<li class="empty">Brak pojazdów</li>`;

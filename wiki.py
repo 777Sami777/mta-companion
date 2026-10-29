@@ -228,7 +228,78 @@ def fetch_prices():
     return prices
 
 
-FETCH = {"places": fetch_places, "vehicles": fetch_vehicles, "tuning": fetch_tuning, "jobs": fetch_jobs}
+def _strip(s):
+    import html as h
+    return re.sub(r"\s+", " ", h.unescape(re.sub(r"<[^>]+>", " ", s))).strip()
+
+
+def parse_news(page):
+    """Artykuły z /news/ forum: [{id, title, url, ts}] (pierwszy link z tekstem to tytuł, "Czytaj dalej" pomijamy)."""
+    import datetime as dt
+    out, seen = [], set()
+    for m in re.finditer(r'<a[^>]+href=[\'"]([^\'"]*news/[^\'"]+-r(\d+)/)[\'"][^>]*>(.*?)</a>', page, re.S):
+        title = _strip(m[3])
+        if not title or m[2] in seen or title == "Czytaj dalej":
+            continue
+        seen.add(m[2])
+        t = re.search(r'<time[^>]+datetime=[\'"]([^\'"]+)', page[m.end():m.end() + 6000])
+        ts = dt.datetime.fromisoformat(t[1].replace("Z", "+00:00")).timestamp() if t else None
+        out.append({"id": int(m[2]), "title": title, "url": m[1], "ts": ts})
+    return out[:15]
+
+
+def fetch_news():
+    return parse_news(get(FORUM + "/news/"))
+
+
+def parse_events(xml):
+    """RSS kalendarza forum: [{title, url, ts}]. Pusty, gdy nie ma zaplanowanych wydarzeń."""
+    import email.utils
+    out = []
+    for item in re.findall(r"<item>(.*?)</item>", xml, re.S):
+        tag = lambda n: _strip((re.search(rf"<{n}>(.*?)</{n}>", item, re.S) or [None, ""])[1].replace("<![CDATA[", "").replace("]]>", ""))
+        when = tag("pubDate")
+        out.append({"title": tag("title"), "url": tag("link"), "desc": tag("description")[:200],
+                    "ts": email.utils.parsedate_to_datetime(when).timestamp() if when else None})
+    return out
+
+
+def fetch_events():
+    return parse_events(get(FORUM + "/events/events.xml/"))
+
+
+def parse_tariff(page):
+    """Taryfikator kar: [{section, offence, penalty, repeat}] z tabel strony /taryfikator/."""
+    out = []
+    for sec in re.findall(r'<section class="mtaTariff__section">(.*?)</section>', page, re.S):
+        name = _strip((re.search(r"<h2>(.*?)</h2>", sec, re.S) or [None, ""])[1])
+        for row in re.findall(r"<tr>(.*?)</tr>", sec, re.S):
+            off = re.search(r'mtaTariff__offence">(.*?)</div>', row, re.S)
+            if not off:
+                continue
+            pens = []
+            for col in re.findall(r'<td class="mtaTariff__penaltyCol">(.*?)</td>', row, re.S):
+                full = re.findall(r'mtaTariff__full">(.*?)</span>', col, re.S)
+                pens.append(" · ".join(x for x in (_strip(f) for f in full) if x and x != "—") or "—")
+            out.append({"section": name, "offence": _strip(off[1]), "penalty": pens[0] if pens else "—", "repeat": pens[1] if len(pens) > 1 else "—"})
+    return out
+
+
+def fetch_tariff():
+    rows = parse_tariff(get(FORUM + "/taryfikator/"))
+    if not rows:
+        raise ValueError("nie znaleziono taryfikatora")
+    return rows
+
+
+def fetch_discord():
+    d = json.loads(get("https://discord.com/api/guilds/351313790480154624/widget.json"))
+    return {"name": d.get("name"), "online": d.get("presence_count"), "invite": d.get("instant_invite")}
+
+
+FETCH = {"places": fetch_places, "vehicles": fetch_vehicles, "tuning": fetch_tuning, "jobs": fetch_jobs,
+         "news": fetch_news, "events": fetch_events, "tariff": fetch_tariff, "discord": fetch_discord}
+TTL = {"discord": 120, "news": 1800, "events": 1800}  # sekundy; reszta raz na dobę
 
 
 def selftest():
@@ -243,6 +314,13 @@ def selftest():
                       "<span class='mtaCommodityPrice__name'>Pszenica</span><span class='mtaCommodityPrice__amount'>1 160,35</span>"
                       "<span class='mtaCommodityPrice__unit'>PLN / t</span></div>")
     assert pr == [{"id": "wheat", "icon": FORUM_ICONS + "wheat.png", "name": "Pszenica", "price": 1160.35, "unit": "PLN / t"}], pr
+    ev = parse_events("<rss><item><title>Derby &amp; nagrody</title><link>https://mta4life.pl/events/1/</link>"
+                      "<pubDate>Thu, 30 Oct 2026 18:00:00 +0000</pubDate></item></rss>")
+    assert ev[0]["title"] == "Derby & nagrody" and ev[0]["ts"] == 1793383200, ev
+    tar = parse_tariff('<section class="mtaTariff__section"><h2>Ogólne</h2><table><tr><td><div class="mtaTariff__offence"> AFK </div></td>'
+                       '<td class="mtaTariff__penaltyCol"><span class="mtaTariff__full">Wyrzucenie</span><span class="mtaTariff__full">—</span></td>'
+                       '<td class="mtaTariff__penaltyCol"><span class="mtaTariff__full">Zbanowanie</span><span class="mtaTariff__full"><strong>2</strong> dni</span></td></tr></table></section>')
+    assert tar == [{"section": "Ogólne", "offence": "AFK", "penalty": "Wyrzucenie", "repeat": "Zbanowanie · 2 dni"}], tar
     art = ["$", "article", "1", {"children": [["$", "img", None, {"src": "/jobs/a.png"}], ["$", "h3", None, {"children": "Kurier"}],
            ["$", "p", None, {"children": "Opis"}], ["$", "$L1b", None, {"job": [{"poziom": 1, "lp": 0, "xp": 0, "premium": 1200}]}],
            ["$", "div", None, {"children": ["Podstawowe wymagania", "Brak", "Uwagi", "Nic"]}]]}]

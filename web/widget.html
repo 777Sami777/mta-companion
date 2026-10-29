@@ -18,6 +18,7 @@ body{display:block;height:auto;padding:12px;overflow:hidden}
   <div class="stat"><b id="w-earn">—</b><span>Zarobek w sesji</span></div>
   <div class="stat"><b id="w-bonus">—</b><span>Do bonusu</span></div>
   <div class="stat"><b id="w-friends">—</b><span>Znajomi online</span></div>
+  <div class="stat wide" id="w-goal" hidden><span id="w-goal-t"></span><div class="goal-bar"><i id="w-goal-bar"></i></div></div>
 </div>
 <script>
 // Ten sam Python co w głównym oknie; odświeżanie co 30 s (logi MTA dopisują się na bieżąco).
@@ -34,6 +35,14 @@ async function tick() {
   const mine = new Set([...(user.friends || []).map(f => f.nick.toLowerCase()), ...h.events.filter(e => e.t === "friend").map(e => e.nick.toLowerCase())]);
   (user.hidden || []).forEach(n => mine.delete(n));
   $("#w-friends").textContent = (srv.list || []).filter(p => mine.has(String(p.nick).toLowerCase())).length;
+  // cel dzienny (zarobek, a gdy go nie ma: czas gry) z Ustawień głównego okna
+  const g = user.daily || {}, midnight = new Date().setHours(0, 0, 0, 0) / 1000;
+  const todayMoney = h.events.filter(e => (e.t === "pay" || e.t === "bonus") && e.ts >= midnight).reduce((a, e) => a + e.v, 0);
+  const todayTime = h.sessions.filter(s => s.end >= midnight).reduce((a, s) => a + s.end - Math.max(s.start, midnight), 0);
+  const [have, goal, label] = g.money ? [todayMoney, g.money, `Cel: ${Math.round(todayMoney).toLocaleString("pl-PL")} z ${g.money.toLocaleString("pl-PL")} PLN`]
+    : g.hours ? [todayTime, g.hours * 3600, `Cel: ${dur(todayTime)} z ${g.hours} h gry`] : [0, 0, ""];
+  $("#w-goal").hidden = !goal;
+  if (goal) { $("#w-goal-t").textContent = label; $("#w-goal-bar").style.width = Math.min(100, have / goal * 100) + "%"; }
 }
 window.addEventListener("pywebviewready", () => { tick(); setInterval(tick, 30000); });
 </script>

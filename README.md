@@ -8,7 +8,7 @@ Darmowa aplikacja na Windows dla graczy serwera **4Life MTA**: sesje, zarobki, z
 
 | Zakładka | Funkcje |
 |---|---|
-| **Dziś** | Czas gry, zarobek, wypłaty i LP z dzisiaj, obecna sesja, znajomi online, gracze na serwerze |
+| **Dziś** | Czas gry, zarobek, wypłaty i LP z dzisiaj, cele dzienne, znajomi online, gracze na serwerze i Discordzie, ceny surowców, ogłoszenia i wydarzenia z forum |
 | **Zarobki / Sesje** | Zarobki dzień po dniu, zarobek na godzinę, lista sesji z długością i zarobkiem |
 | **Znajomi** | Lista uzupełniana z gry, status online i czas sesji, notatki |
 | **Pojazdy / Tuning / Prace dorywcze** | Dane z wiki serwera: ceny, salony, prędkości, części z kosztem, zarobki na poziom |
@@ -17,6 +17,7 @@ Darmowa aplikacja na Windows dla graczy serwera **4Life MTA**: sesje, zarobki, z
 | **Giełda** | Ogłoszenia z czatu giełdy, ceny aut z ogłoszeń w porównaniu z salonem, powiadomienia o wybranych autach |
 | **Statystyki** | Historia cen surowców i godziny szczytu serwera |
 | **Czat / Zrzuty ekranu** | Wyszukiwarka całego czatu z logów, galeria zrzutów z MTA |
+| **Dziennik / Taryfikator** | Notatki postaci z datą, kary serwerowe z wyszukiwarką |
 | **Ustawienia** | Powiadomienia Windows, ikona przy zegarze, start z Windows, jasny motyw, wersja angielska, kopia zapasowa |
 
 ## Bezpieczeństwo
