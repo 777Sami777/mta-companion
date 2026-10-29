@@ -29,6 +29,15 @@
         ],
         "createdAt": "2026-10-29T17:48:21.796Z",
         "reason": "Claude: Giełda filter chips carry --c inline but only use it as background when .on (text then #111); inactive chips are gray on dark card"
+      },
+      {
+        "rule": "broken-image",
+        "value": "*",
+        "files": [
+          "web/more.js"
+        ],
+        "createdAt": "2026-10-29T18:06:28.784Z",
+        "reason": "Claude: screenshot thumbnails are lazy-loaded, src set from data-shot when visible; hidden until then"
       }
     ]
   }

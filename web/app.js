@@ -190,9 +190,19 @@ async function initMap() {
   const chips = () => $("#layers").innerHTML = names.map(l => `<button class="chip ${on.has(l) ? "on" : ""}" style="--c:${def(l)[1]}" data-l="${esc(l)}">${svg(def(l)[2])}${esc(def(l)[0])} · ${groups[l].length}</button>`).join("");
   chips();
   const info = () => $("#map-info").textContent = `${wiki.length} miejsc z wiki · ${p.points.length} punktów z cache MTA · klik w ikonę: opis · klik w mapę: co jest najbliżej · dwuklik: własny znacznik`;
+  let view = null;
+  const pinHtml = (l, pt, i) => `<button class="pin${def(l)[5] ? " mini" : ""}" style="--c:${def(l)[1]};left:${(pt.x + 3000) / 2}px;top:${(3000 - pt.y) / 2}px" data-p="${esc(l)}|${i}" title="${esc(pt.name)}${pt.desc ? ": " + esc(pt.desc) : ""}" aria-label="${esc(pt.name)}">${svg(def(l)[2])}${pt.icon ? `<img data-icon="${esc(pt.icon)}" alt="">` : ""}</button>`;
   const draw = () => {
-    $("#pins").innerHTML = names.flatMap(l => on.has(l) ? groups[l].map((pt, i) =>
-      `<button class="pin${def(l)[5] ? " mini" : ""}" style="--c:${def(l)[1]};left:${(pt.x + 3000) / 2}px;top:${(3000 - pt.y) / 2}px" data-p="${esc(l)}|${i}" title="${esc(pt.name)}${pt.desc ? ": " + esc(pt.desc) : ""}" aria-label="${esc(pt.name)}">${svg(def(l)[2])}${pt.icon ? `<img data-icon="${esc(pt.icon)}" alt="">` : ""}</button>`) : []).join("");
+    // grupowanie przy oddaleniu: punkty jednej warstwy w tej samej kratce (~44 px na ekranie) łączą się w kółko z liczbą
+    const sc = view ? view.scale() : 0.2, cell = sc < 0.55 ? 44 / sc : 0;
+    $("#pins").innerHTML = names.flatMap(l => {
+      if (!on.has(l)) return [];
+      if (!cell || l === "moje") return groups[l].map((pt, i) => pinHtml(l, pt, i));
+      const cells = new Map();
+      groups[l].forEach((pt, i) => { const px = (pt.x + 3000) / 2, py = (3000 - pt.y) / 2, k = Math.floor(px / cell) + "," + Math.floor(py / cell); (cells.get(k) || cells.set(k, []).get(k)).push([pt, i, px, py]); });
+      return [...cells.values()].map(c => c.length === 1 ? pinHtml(l, c[0][0], c[0][1]) :
+        `<button class="pin cluster" style="--c:${def(l)[1]};left:${c.reduce((a, x) => a + x[2], 0) / c.length}px;top:${c.reduce((a, x) => a + x[3], 0) / c.length}px" data-c="${c.reduce((a, x) => a + x[2], 0) / c.length},${c.reduce((a, x) => a + x[3], 0) / c.length}" aria-label="${c.length} punktów: ${esc(def(l)[0])}">${c.length}</button>`);
+    }).join("");
     // ikony z wiki: każda pobierana raz (potem z dysku); do czasu wczytania widać zwykłą ikonę warstwy
     $("#pins").querySelectorAll("img[data-icon]").forEach(async i => {
       const src = await api.wiki_img(i.dataset.icon);
@@ -209,6 +219,8 @@ async function initMap() {
     state[l] = on.has(l); save(); draw();
   };
   $("#pins").onclick = e => {
+    const cl = e.target.closest("[data-c]");
+    if (cl) { const [px, py] = cl.dataset.c.split(",").map(Number); view.focus(px, py, view.scale() * 2.2); return; }
     const b = e.target.closest("[data-p]");
     if (!b) return;
     const [l, i] = b.dataset.p.split("|"), pt = groups[l][i];
@@ -229,9 +241,14 @@ async function initMap() {
     groups.moje.push({x: px * 2 - 3000, y: 3000 - py * 2, name: name.slice(0, 60), desc: (prompt("Notatka (opcjonalnie):") || "").slice(0, 200)});
     on.add("moje"); save(); chips(); draw();
   };
-  $("#pins").onpointerdown = e => { if (e.target.closest("[data-p]")) e.stopPropagation(); }; // klik w ikonę nie zaczyna przeciągania
+  $("#pins").onpointerdown = e => { if (e.target.closest("[data-p],[data-c]")) e.stopPropagation(); }; // klik w ikonę nie zaczyna przeciągania
+  let zoomTimer, lastCell = null;
+  view = panZoom(sc => { // po zmianie przybliżenia przelicz grupy, ale tylko gdy zmienił się próg
+    const c = sc < 0.55 ? Math.round(Math.log2(sc) * 2) : "off";
+    if (c === lastCell) return;
+    lastCell = c; clearTimeout(zoomTimer); zoomTimer = setTimeout(draw, 120);
+  });
   draw();
-  const view = panZoom();
 
   // szukaj na mapie: wszystkie warstwy, wynik przesuwa mapę i włącza jego warstwę
   const all = names.flatMap(l => groups[l].map((pt, i) => ({l, i, pt})));
@@ -265,10 +282,10 @@ async function initMap() {
   };
 }
 
-function panZoom() {
+function panZoom(onZoom = () => {}) {
   const box = $("#map"), inner = $("#map-in");
   let s = Math.min(box.clientWidth, box.clientHeight) / 3000, x = (box.clientWidth - 3000 * s) / 2, y = (box.clientHeight - 3000 * s) / 2, moved = 0;
-  const apply = () => { inner.style.transform = `translate(${x}px,${y}px) scale(${s})`; inner.style.setProperty("--inv", Math.min(8, Math.max(0.5, 0.9 / s))); }; // --inv: ikony mają stały rozmiar na ekranie
+  const apply = () => { inner.style.transform = `translate(${x}px,${y}px) scale(${s})`; inner.style.setProperty("--inv", Math.min(8, Math.max(0.5, 0.9 / s))); onZoom(s); }; // --inv: ikony mają stały rozmiar na ekranie
   box.onwheel = e => {
     e.preventDefault();
     const r = box.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top, k = e.deltaY < 0 ? 1.2 : 1 / 1.2;
@@ -289,7 +306,8 @@ function panZoom() {
   apply();
   return {
     dragged: () => moved > 5, // klik po przeciągnięciu mapy to nie klik
-    focus(px, py) { s = Math.max(s, 0.8); x = box.clientWidth / 2 - px * s; y = box.clientHeight / 2 - py * s; apply(); },
+    scale: () => s,
+    focus(px, py, zoom) { s = Math.min(3, zoom || Math.max(s, 0.8)); x = box.clientWidth / 2 - px * s; y = box.clientHeight / 2 - py * s; apply(); },
   };
 }
 

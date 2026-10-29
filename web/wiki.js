@@ -105,14 +105,28 @@ function levelTable(rows) {
       ? `<td class="n">${fmtPln(r.premium / 1.2)}</td><td class="n">${fmtPln(r.premium)}</td>` : `<td class="n empty" colspan="2">Brak danych</td>`) : ""}</tr>`).join("") + `</table>`;
 }
 
+// opłacalność: prace z wariantem "pojazd" (np. Sultan 2.2 FT) - po ilu godzinach pracy zwraca się zakup auta
+function payback(j, vehicles) {
+  const lines = j.variants.map(v => {
+    const name = v.label.split(/\s\d/)[0].trim(), veh = vehicles.find(x => x.name.toLowerCase() === name.toLowerCase());
+    const rate = (v.rows.find(r => r.premium) || {}).premium / 1.2; // stawka domyślna na 1. poziomie
+    if (!veh || !rate) return "";
+    const eng = engineList(veh).find(([n, e]) => e.price && v.label.includes(n)), cost = eng ? eng[1].price : minPrice(veh);
+    if (!isFinite(cost)) return "";
+    return `<li>${esc(veh.name)}${eng ? " " + esc(eng[0]) : " (najtańszy silnik)"}: ${fmtPln(cost)} · zwraca się po ok. <b>${Math.ceil(cost / rate)} h</b> pracy</li>`;
+  }).filter(Boolean);
+  return lines.length ? `<div class="payback"><span>Opłacalność pojazdu do pracy</span><ul>${lines.join("")}</ul></div>` : "";
+}
+
 async function renderJobs() {
-  const jobs = await wikiData("jobs");
+  const [jobs, vehicles] = await Promise.all([wikiData("jobs"), wikiData("vehicles")]);
   if (!jobs) { $("#job-list").innerHTML = noData("prac"); opened.delete("prace"); return; }
   $("#job-list").innerHTML = jobs.map((j, ji) => `<li class="card job">
     <div class="card-img wide">${j.img ? `<img data-img="${esc(j.img)}" alt="${esc(j.name)}">` : ""}${j.new ? `<span class="badge">Nowość</span>` : ""}</div>
     <div class="card-body"><b>${esc(j.name)}</b><p>${esc(j.desc)}</p>
     ${j.variants.length > 1 ? `<div class="chips" data-job="${ji}">${j.variants.map((v, i) => `<button class="chip ${i ? "" : "on"}" style="--c:var(--accent)" data-v="${i}">${esc(variantName(v.label))}</button>`).join("")}</div>` : ""}
     <div class="job-table">${j.variants[0] ? levelTable(j.variants[0].rows) : ""}</div>
+    ${payback(j, vehicles || [])}
     <div class="job-foot"><div><span>Wymagania</span>${esc(j.req || "—")}</div><div><span>Uwagi</span>${esc(j.notes || "—")}</div></div>
     ${j.link ? `<button class="btn small" data-link="${esc(j.link)}">Poradnik na forum</button>` : ""}</div></li>`).join("");
   lazyImgs($("#job-list"));

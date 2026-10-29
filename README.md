@@ -16,7 +16,8 @@ Darmowa aplikacja na Windows dla graczy serwera **4Life MTA**: sesje, zarobki, z
 | **Serwer** | Gracze online z wyszukiwarką |
 | **Giełda** | Ogłoszenia z czatu giełdy, ceny aut z ogłoszeń w porównaniu z salonem, powiadomienia o wybranych autach |
 | **Statystyki** | Historia cen surowców i godziny szczytu serwera |
-| **Ustawienia** | Powiadomienia Windows, kopia zapasowa danych |
+| **Czat / Zrzuty ekranu** | Wyszukiwarka całego czatu z logów, galeria zrzutów z MTA |
+| **Ustawienia** | Powiadomienia Windows, ikona przy zegarze, start z Windows, jasny motyw, wersja angielska, kopia zapasowa |
 
 ## Bezpieczeństwo
 
@@ -28,8 +29,8 @@ Darmowa aplikacja na Windows dla graczy serwera **4Life MTA**: sesje, zarobki, z
 ## Budowanie ze źródeł
 
 ```bash
-pip install pywebview pyinstaller pillow
-python -m PyInstaller --noconfirm --onefile --windowed --name 4LifeCompanion --icon icon.ico --add-data "web;web" main.py
+pip install pywebview pyinstaller pillow pystray
+python -m PyInstaller --noconfirm --onefile --windowed --name 4LifeCompanion --icon icon.ico --add-data "web;web" --add-data "icon.ico;." --hidden-import pystray._win32 main.py
 ```
 
 Instalator: skopiuj `dist/4LifeCompanion.exe` i plik `version.txt` z wersją do `setup_build/`, potem:

@@ -15,6 +15,8 @@
   <button class="tab" data-tab="znajomi">Znajomi</button>
   <button class="tab" data-tab="gielda">Giełda</button>
   <button class="tab" data-tab="statystyki">Statystyki</button>
+  <button class="tab" data-tab="czat">Czat</button>
+  <button class="tab" data-tab="zrzuty">Zrzuty ekranu</button>
   <button class="tab" data-tab="pojazdy">Pojazdy</button>
   <button class="tab" data-tab="tuning">Tuning</button>
   <button class="tab" data-tab="prace">Prace dorywcze</button>
@@ -98,15 +100,41 @@
     <h1>Statystyki</h1>
     <h2>Ceny surowców</h2>
     <div class="charts" id="price-charts"></div>
+    <h2>Z Twoich logów</h2>
+    <div class="stats" id="log-stats"></div>
     <h2>Gracze na serwerze</h2>
     <div class="panel"><div class="sub" id="players-info"></div><div class="chart" id="players-chart"></div></div>
   </section>
 
+  <section id="czat" class="page">
+    <h1>Czat</h1>
+    <p class="sub">Wyszukiwarka całego czatu z logów MTA z ostatnich dni. Wszystko zostaje na tym komputerze.</p>
+    <div class="row">
+      <div id="chat-kind" class="chips"><button class="chip on" style="--c:var(--accent)" data-k="">Wszystko</button><button class="chip" style="--c:var(--accent)" data-k="pm">Prywatne</button><button class="chip" style="--c:var(--accent)" data-k="global">Globalny</button><button class="chip" style="--c:var(--accent)" data-k="gielda">Giełda</button><button class="chip" style="--c:var(--accent)" data-k="inne">Komunikaty</button></div>
+      <input type="text" id="chat-q" placeholder="Szukaj w czacie: nick, słowo…" aria-label="Szukaj w czacie">
+    </div>
+    <div class="panel"><ul class="list chat" id="chat-list"></ul></div>
+  </section>
+
+  <section id="zrzuty" class="page">
+    <h1>Zrzuty ekranu</h1>
+    <div class="row"><p class="sub" id="shots-info"></p><button class="btn small" id="shots-folder">Otwórz folder</button></div>
+    <ul class="cards shots" id="shots-list"></ul>
+  </section>
+
   <section id="ustawienia" class="page">
     <h1>Ustawienia</h1>
+    <div class="panel"><h2>Aplikacja</h2>
+      <label class="opt"><input type="checkbox" id="s-tray"> Krzyżyk chowa aplikację do ikony przy zegarze (statystyki i powiadomienia działają dalej)</label>
+      <label class="opt"><input type="checkbox" id="s-auto"> Uruchamiaj z Windows (od razu przy zegarze)</label>
+      <label class="opt"><input type="checkbox" id="s-light"> Jasny motyw</label>
+      <label class="opt">Język / Language <select id="s-lang" aria-label="Język"><option value="pl">Polski</option><option value="en">English</option></select></label>
+      <p class="sub">Skróty działające też w grze: <b>Ctrl+Shift+W</b> widżet, <b>Ctrl+Shift+M</b> pokaż lub schowaj aplikację.</p>
+    </div>
     <div class="panel"><h2>Powiadomienia Windows</h2>
       <label class="opt"><input type="checkbox" id="n-friends"> Znajomy wszedł do gry</label>
       <label class="opt"><input type="checkbox" id="n-bonus"> 5 minut do bonusu godzinowego (Premium)</label>
+      <label class="opt"><input type="checkbox" id="n-session"> Podsumowanie po wyjściu z gry</label>
       <h2 class="mt">Cena surowca powyżej</h2>
       <div class="alerts" id="n-prices"></div>
       <h2 class="mt">Ogłoszenia na giełdzie</h2>
@@ -158,5 +186,6 @@
 <script src="app.js"></script>
 <script src="wiki.js"></script>
 <script src="features.js"></script>
+<script src="more.js"></script>
 </body>
 </html>

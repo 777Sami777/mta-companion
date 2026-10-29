@@ -22,7 +22,7 @@ import webview
 import wiki
 
 APP_NAME = "4Life Companion"
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.3.0"
 GITHUB_REPO = "777Sami777/mta-companion"  # "login/repozytorium": tu aktualizator szuka najnowszego wydania
 EXE_NAME = "4LifeCompanion.exe"
 NO_WINDOW = 0x08000000
@@ -56,6 +56,8 @@ def mta_dir():
 MTA = mta_dir()
 LOGS = os.path.join(MTA, "MTA", "logs")
 CACHE = os.path.join(MTA, "mods", "deathmatch", "resources")
+SHOTS_DIR = os.path.join(MTA, "screenshots")
+RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 
 
 def resource(*parts):
@@ -103,7 +105,33 @@ def classify(text):
     m = re.match(r"\* Rozpocząłeś pracę (.+?)\.?$", text)
     if m:
         return {"t": "job", "v": m[1]}
+    if "Oblałeś egzamin" in text:
+        return {"t": "exam_fail"}
+    if "Bilet został pomyślnie opłacony" in text:
+        return {"t": "ticket"}
+    if text.startswith("Screenshot taken"):
+        return {"t": "shot"}
     return None
+
+
+def chat_lines(paths, q="", kind="", limit=400):
+    """Wyszukiwarka czatu w logach MTA: G> globalny, GO> giełda, << / >> prywatne, reszta to komunikaty."""
+    q, out = q.lower(), []
+    for path in sorted(paths, key=os.path.getmtime, reverse=True):
+        with open(path, encoding="utf-8", errors="replace") as f:
+            lines = f.readlines()
+        for raw in reversed(lines):
+            m = LINE.match(raw.rstrip("\n"))
+            if not m:
+                continue
+            text = m[2]
+            k = "gielda" if text.startswith("GO>") else "global" if text.startswith("G>") else "pm" if text.startswith(("<<", ">>")) else "inne"
+            if (kind and k != kind) or (q and q not in text.lower()):
+                continue
+            out.append({"ts": dt.datetime.strptime(m[1], "%Y-%m-%d %H:%M:%S").timestamp(), "k": k, "text": text})
+            if len(out) >= limit:
+                return out
+    return out
 
 
 AD = re.compile(r"^GO> (.+?) \((\d+)\): (.+)$")
@@ -389,6 +417,94 @@ class Api:
         win.events.shown += lambda: dark_title_bar(win)
         return True
 
+    # ---------- czat i zrzuty ekranu ----------
+    def chat(self, q="", kind=""):
+        return chat_lines(glob.glob(os.path.join(LOGS, "console.log*")), str(q)[:100], str(kind))
+
+    def _shot_path(self, name):
+        """Tylko pliki obrazów bezpośrednio w folderze zrzutów MTA (bez ścieżek z zewnątrz)."""
+        if not isinstance(name, str) or os.path.basename(name) != name or not name.lower().endswith((".png", ".jpg", ".jpeg")):
+            return None
+        p = os.path.join(SHOTS_DIR, name)
+        return p if os.path.isfile(p) else None
+
+    def screenshots(self):
+        if not os.path.isdir(SHOTS_DIR):
+            return []
+        files = [f for f in os.listdir(SHOTS_DIR) if self._shot_path(f)]
+        return sorted(({"name": f, "ts": os.path.getmtime(os.path.join(SHOTS_DIR, f))} for f in files), key=lambda s: -s["ts"])[:300]
+
+    def screenshot_thumb(self, name):
+        import io
+        from PIL import Image
+        p = self._shot_path(name)
+        if not p:
+            return None
+        thumb = os.path.join(DATA_DIR, "miniatury", name + ".jpg")
+        if not os.path.isfile(thumb):  # miniatura raz, potem z dysku: pełne zrzuty mają po kilka MB
+            os.makedirs(os.path.dirname(thumb), exist_ok=True)
+            im = Image.open(p).convert("RGB")
+            im.thumbnail((480, 270))
+            im.save(thumb, quality=82)
+        with open(thumb, "rb") as f:
+            return "data:image/jpeg;base64," + base64.b64encode(f.read()).decode()
+
+    def open_screenshot(self, name):
+        p = self._shot_path(name)
+        if p:
+            os.startfile(p)
+        return bool(p)
+
+    def open_shots_folder(self):
+        if os.path.isdir(SHOTS_DIR):
+            os.startfile(SHOTS_DIR)
+
+    # ---------- zasobnik, autostart, okno ----------
+    def show_main(self):
+        w = webview.windows[0]
+        w.show()
+        w.restore()
+        return True
+
+    def toggle_main(self):
+        w = webview.windows[0]
+        if getattr(self, "_hidden", False):
+            self.show_main()
+        else:
+            w.hide()
+        self._hidden = not getattr(self, "_hidden", False)
+
+    def quit_app(self):
+        self._quitting = True
+        if getattr(self, "_tray", None):
+            self._tray.stop()
+        for w in list(webview.windows):
+            w.destroy()
+
+    def get_autostart(self):
+        import winreg
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY) as k:
+                winreg.QueryValueEx(k, APP_NAME)
+            return True
+        except OSError:
+            return False
+
+    def set_autostart(self, on):
+        """Start z Windows (od razu do zasobnika). Działa tylko w wersji .exe."""
+        import winreg
+        if not getattr(sys, "frozen", False):
+            return False
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_SET_VALUE) as k:
+            if on:
+                winreg.SetValueEx(k, APP_NAME, 0, winreg.REG_SZ, f'"{sys.executable}" --tray')
+            else:
+                try:
+                    winreg.DeleteValue(k, APP_NAME)
+                except OSError:
+                    return False
+        return True
+
     def wiki(self, kind):
         """Dane z wiki serwera zapamiętane na dysku na dobę; bez sieci zostaje ostatnia wersja."""
         path = os.path.join(DATA_DIR, f"wiki_{kind}.json")
@@ -520,6 +636,8 @@ def _selftest():
     pa = priced_ads([{"ts": 1, "nick": "a", "text": "[S/W] Sultan RS 2.2 450k"}, {"ts": 2, "nick": "b", "text": "kupie sultan do 300k"}],
                     [{"name": "Sultan"}, {"name": "Sultan RS"}])
     assert [(x["v"], x["p"], x["s"]) for x in pa] == [("Sultan RS", 450000, True), ("Sultan", 300000, False)], pa
+    assert classify("✘ Oblałeś egzamin z powodu opuszczenia trasy.") == {"t": "exam_fail"}
+    assert classify("Screenshot taken: 'mta-screen.png'") == {"t": "shot"}
     assert version_tuple("v1.10.0") > version_tuple("1.9.3") and version_tuple("1.0") == (1, 0)
     print("selftest ok")
 
@@ -541,16 +659,73 @@ def version_tuple(v):
     return tuple(int(x) for x in re.findall(r"\d+", str(v))[:3])
 
 
+def start_tray(api):
+    """Ikona przy zegarze: zamknięcie okna chowa aplikację, a statystyki, wykresy i powiadomienia działają dalej."""
+    import threading
+    try:
+        import pystray
+        from PIL import Image
+        img = Image.open(resource("icon.ico"))
+    except Exception:
+        return
+    menu = pystray.Menu(pystray.MenuItem("Pokaż " + APP_NAME, lambda *_: api.show_main(), default=True),
+                        pystray.MenuItem("Widżet nad grą", lambda *_: api.open_widget()),
+                        pystray.MenuItem("Zamknij", lambda *_: api.quit_app()))
+    api._tray = pystray.Icon("4LifeCompanion", img, APP_NAME, menu)
+    threading.Thread(target=api._tray.run, daemon=True).start()
+
+
+def start_hotkeys(api):
+    """Globalne skróty (działają też w grze) przez RegisterHotKey: Ctrl+Shift+W widżet, Ctrl+Shift+M okno aplikacji."""
+    import ctypes
+    import threading
+    from ctypes import wintypes
+
+    def loop():
+        user32 = ctypes.windll.user32
+        mods = 0x4000 | 0x0002 | 0x0004  # MOD_NOREPEAT | CTRL | SHIFT
+        user32.RegisterHotKey(None, 1, mods, ord("W"))
+        user32.RegisterHotKey(None, 2, mods, ord("M"))
+        msg = wintypes.MSG()
+        while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
+            if msg.message == 0x0312:  # WM_HOTKEY
+                try:
+                    api.open_widget() if msg.wParam == 1 else api.toggle_main()
+                except Exception as e:  # skrót nie może wyłączyć całej pętli
+                    print("skrót:", e)
+
+    threading.Thread(target=loop, daemon=True).start()
+
+
 def main():
     if "--selftest" in sys.argv:
         return _selftest()
     if os.path.isdir(OLD_DATA_DIR) and not os.path.exists(DATA_DIR):
         os.rename(OLD_DATA_DIR, DATA_DIR)
     os.makedirs(DATA_DIR, exist_ok=True)
-    win = webview.create_window(APP_NAME, resource("web", "index.html"), js_api=Api(), width=1280, height=820,
-                                min_size=(900, 600), background_color="#0a1424")
+    api = Api()
+    api._hidden = "--tray" in sys.argv  # autostart: od razu do zasobnika
+    win = webview.create_window(APP_NAME, resource("web", "index.html"), js_api=api, width=1280, height=820,
+                                min_size=(900, 600), background_color="#0a1424", hidden=api._hidden)
     win.events.shown += lambda: dark_title_bar(win)
-    webview.start(private_mode=False, storage_path=os.path.join(DATA_DIR, "webview"))
+
+    def on_closing():
+        # krzyżyk chowa do zasobnika (jeśli włączone w Ustawieniach i ikona działa); "Zamknij" w menu ikony kończy naprawdę
+        if getattr(api, "_quitting", False) or not getattr(api, "_tray", None) or not load_json(USER_FILE, {}).get("app", {}).get("tray", True):
+            if getattr(api, "_tray", None):
+                api._tray.stop()
+            return True
+        win.hide()
+        api._hidden = True
+        return False
+
+    win.events.closing += on_closing
+
+    def on_start():
+        start_tray(api)
+        start_hotkeys(api)
+
+    webview.start(on_start, private_mode=False, storage_path=os.path.join(DATA_DIR, "webview"))
 
 
 if __name__ == "__main__":
