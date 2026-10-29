@@ -8,7 +8,7 @@ import re
 import urllib.request
 
 WIKI = "https://wiki.mta4life.pl"
-USER_AGENT = "MTA Companion"
+USER_AGENT = "4Life Companion"
 IMG_PATH = re.compile(r"^/[\w/.-]+\.(png|jpe?g|webp)$")
 # miejsce w paczce mapy: {x:..,y:..,name:"..",category:"..",type:"..",description:".."}
 PLACE = re.compile(r'\{x:(-?[\d.]+),y:(-?[\d.]+),name:"((?:[^"\\]|\\.)*)",category:"(\w+)",type:"(\w+)"(?:,description:"((?:[^"\\]|\\.)*)")?')
@@ -208,6 +208,26 @@ def fetch_jobs():
     return jobs
 
 
+FORUM = "https://mta4life.pl"
+FORUM_ICONS = FORUM + "/applications/mta/interface/prices/icons/"
+PRICE = re.compile(r"mtaCommodityPrice--(\w+)'.*?<img src='([^']+)'.*?__name'>([^<]+)<.*?__amount'>([^<]+)<.*?__unit'>([^<]+)<", re.S)
+
+
+def parse_prices(html):
+    """Blok "Ceny surowców" ze strony głównej forum: [{id, name, price, unit, icon}]."""
+    import html as h
+    return [{"id": m[1], "icon": m[2] if m[2].startswith(FORUM_ICONS) else None, "name": h.unescape(m[3]).strip(),
+             "price": float(m[4].replace(" ", "").replace(" ", "").replace(",", ".")), "unit": h.unescape(m[5]).strip()}
+            for m in PRICE.finditer(html)]
+
+
+def fetch_prices():
+    prices = parse_prices(get(FORUM + "/"))
+    if not prices:
+        raise ValueError("nie znaleziono cen surowców na forum")
+    return prices
+
+
 FETCH = {"places": fetch_places, "vehicles": fetch_vehicles, "tuning": fetch_tuning, "jobs": fetch_jobs}
 
 
@@ -219,6 +239,10 @@ def selftest():
     lit = js_literal(literal_at(js, js.index("[")))
     assert lit == [{"id": 400, "name": "Landó", "seats": 4, "ok": True, "no": False,
                     "engines": {"1.4": {"stock": 134, "price": 11000, "v": 0.5}}, "d": "a[b]"}], lit
+    pr = parse_prices("<div class='mtaCommodityPrice mtaCommodityPrice--wheat'><img src='" + FORUM_ICONS + "wheat.png'>"
+                      "<span class='mtaCommodityPrice__name'>Pszenica</span><span class='mtaCommodityPrice__amount'>1 160,35</span>"
+                      "<span class='mtaCommodityPrice__unit'>PLN / t</span></div>")
+    assert pr == [{"id": "wheat", "icon": FORUM_ICONS + "wheat.png", "name": "Pszenica", "price": 1160.35, "unit": "PLN / t"}], pr
     art = ["$", "article", "1", {"children": [["$", "img", None, {"src": "/jobs/a.png"}], ["$", "h3", None, {"children": "Kurier"}],
            ["$", "p", None, {"children": "Opis"}], ["$", "$L1b", None, {"job": [{"poziom": 1, "lp": 0, "xp": 0, "premium": 1200}]}],
            ["$", "div", None, {"children": ["Podstawowe wymagania", "Brak", "Uwagi", "Nic"]}]]}]

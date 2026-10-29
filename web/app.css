@@ -104,3 +104,11 @@ table.mini td,table.mini th{padding:4px 6px}
 .cart-sum{font:700 22px var(--d);margin:10px 0}
 .job-foot{display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:13px;border-top:1px solid var(--line);padding-top:8px}
 .job-foot span{display:block;font-size:11.5px;color:var(--text-3);text-transform:uppercase}
+h2 small{font:500 12px Manrope,sans-serif;letter-spacing:0;text-transform:none;color:var(--text-3)}
+.prices{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.price{display:flex;gap:12px;align-items:center;padding:12px;border-radius:8px;background:var(--card);border:1px solid var(--line)}
+.p-ico{width:44px;height:44px;flex:none;display:grid;place-items:center;border-radius:8px;background:rgba(233,239,248,.05)}
+.p-ico img{width:28px;height:28px}
+.p-ico img:not([src]){visibility:hidden}
+.price b{display:block;font:700 22px/1.1 var(--d);font-variant-numeric:tabular-nums}
+.p-name,.price small{display:block;font-size:12.5px;color:var(--text-3)}

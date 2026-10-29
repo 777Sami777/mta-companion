@@ -1,4 +1,4 @@
-"""Instalator MTA Companion: kopiuje aplikację (domyślnie do %LOCALAPPDATA%\\Programs), tworzy skróty
+"""Instalator 4Life Companion: kopiuje aplikację (domyślnie do %LOCALAPPDATA%\\Programs), tworzy skróty
 i wpis „Odinstaluj” w Ustawieniach Windows. Bez uprawnień administratora (tylko bieżący użytkownik).
 Okno w stylu aplikacji (pywebview + WebView2); bez WebView2 zostaje proste okno tkinter."""
 import json
@@ -10,9 +10,9 @@ import threading
 import time
 import winreg
 
-APP = "MTA Companion"
-DEFAULT_DEST = os.path.join(os.environ["LOCALAPPDATA"], "Programs", "MTACompanion")
-UNINSTALL_KEY = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\MTACompanion"
+APP = "4Life Companion"
+DEFAULT_DEST = os.path.join(os.environ["LOCALAPPDATA"], "Programs", "4LifeCompanion")
+UNINSTALL_KEY = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\4LifeCompanion"
 NO_WINDOW = 0x08000000
 
 
@@ -52,20 +52,20 @@ def shortcut(path, target):
 
 def install(dest, opts, report):
     """Właściwa instalacja; report(procent, tekst) pokazuje postęp."""
-    exe = os.path.join(dest, "MTACompanion.exe")
+    exe = os.path.join(dest, "4LifeCompanion.exe")
     report(2, "Zamykam działającą aplikację…")
-    subprocess.run(["taskkill", "/IM", "MTACompanion.exe", "/F"], creationflags=NO_WINDOW, capture_output=True)
+    subprocess.run(["taskkill", "/IM", "4LifeCompanion.exe", "/F"], creationflags=NO_WINDOW, capture_output=True)
     # Windows zwalnia pliki zamkniętego procesu z opóźnieniem: czekaj, aż zniknie z listy (do 10 s)
     for _ in range(40):
-        out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq MTACompanion.exe", "/NH"], creationflags=NO_WINDOW, capture_output=True, text=True).stdout
-        if "MTACompanion.exe" not in out:
+        out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq 4LifeCompanion.exe", "/NH"], creationflags=NO_WINDOW, capture_output=True, text=True).stdout
+        if "4LifeCompanion.exe" not in out:
             break
         time.sleep(0.25)
     os.makedirs(dest, exist_ok=True)
     report(30, "Kopiuję aplikację…")
     for attempt in range(20):  # plik może być jeszcze chwilę zablokowany (antywirus, zamykany proces)
         try:
-            shutil.copyfile(resource("MTACompanion.exe"), exe)
+            shutil.copyfile(resource("4LifeCompanion.exe"), exe)
             break
         except PermissionError:
             if attempt == 19:
@@ -82,11 +82,11 @@ def install(dest, opts, report):
     if opts.get("start", True):
         shortcut(lnk_start, exe)
     report(95, "Rejestruję w Windows…")
-    # odinstalowanie: skrypt usuwa pliki programu i skróty, dane gracza w %APPDATA%\MTACompanion zostają
+    # odinstalowanie: skrypt usuwa pliki programu i skróty, dane gracza w %APPDATA%\4LifeCompanion zostają
     bat = os.path.join(dest, "odinstaluj.bat")
     with open(bat, "w", encoding="mbcs") as f:
         f.write(f"""@echo off
-taskkill /IM MTACompanion.exe /F >nul 2>&1
+taskkill /IM 4LifeCompanion.exe /F >nul 2>&1
 reg delete "HKCU\\{UNINSTALL_KEY}" /f >nul 2>&1
 del "{lnk_desk}" >nul 2>&1
 del "{lnk_start}" >nul 2>&1
@@ -139,12 +139,12 @@ h2{margin:0 0 4px;font:700 22px Bahnschrift,sans-serif}.path{display:flex;gap:8p
 .err{color:#fca5a5;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.35);padding:10px 12px;border-radius:6px;font-size:13px;margin-top:14px;white-space:pre-wrap}
 @media (prefers-reduced-motion:reduce){.step,.bar i,.btn,.tog i::after{transition:none}}
 </style></head><body>
-<div class="top pywebview-drag-region"><b>MTA <span>COMPANION</span> · INSTALATOR</b>
+<div class="top pywebview-drag-region"><b>4LIFE <span>COMPANION</span> · INSTALATOR</b>
 <button onclick="api().minimize()" title="Minimalizuj" aria-label="Minimalizuj"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
 <button class="x" onclick="api().close()" title="Zamknij" aria-label="Zamknij instalator"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
 <main>
 <section class="step on" id="s1">
-  <h1>MTA <span>Companion</span></h1>
+  <h1>4Life <span>Companion</span></h1>
   <p class="sub" id="lead">Pomocnik gracza 4Life MTA: sesje, zarobki, znajomi, mapa z giełdami, pojazdy, tuning i prace dorywcze w jednym oknie.</p>
   <div class="badge"><i></i><span id="ver">WERSJA</span></div>
   <ul class="feat"><li>Nie dotyka gry, czyta tylko logi MTA</li><li>Dane zostają na Twoim komputerze</li><li>Bez uprawnień administratora</li><li>Aktualizacje jednym kliknięciem</li></ul>
@@ -170,7 +170,7 @@ h2{margin:0 0 4px;font:700 22px Bahnschrift,sans-serif}.path{display:flex;gap:8p
 <section class="step" id="s4">
   <div class="ok"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
   <h1 id="h4">Gotowe</h1>
-  <p class="sub">MTA Companion jest zainstalowany. Znajdziesz go na pulpicie i w menu Start.</p>
+  <p class="sub">4Life Companion jest zainstalowany. Znajdziesz go na pulpicie i w menu Start.</p>
   <label class="opt" style="margin-top:22px;max-width:360px"><span><b>Uruchom teraz</b></span><span class="tog"><input type="checkbox" id="o-run" checked><i></i></span></label>
   <div class="grow"></div>
   <div class="foot"><button class="btn pri" id="go4" onclick="finish()">Zakończ</button></div>
@@ -215,7 +215,7 @@ class Api:
     def pick(self):
         import webview
         r = self.win.create_file_dialog(webview.FOLDER_DIALOG)
-        return os.path.join(r[0], "MTACompanion") if r else None
+        return os.path.join(r[0], "4LifeCompanion") if r else None
 
     def install(self, opts):
         dest = os.path.abspath(os.path.expandvars(str(opts.get("dest") or DEFAULT_DEST)))
@@ -225,7 +225,7 @@ class Api:
         try:
             return {"ok": True, "exe": install(dest, opts, report)}
         except PermissionError as e:
-            return {"ok": False, "error": f"Brak dostępu do pliku: {e.filename}\nZamknij MTA Companion i spróbuj ponownie."}
+            return {"ok": False, "error": f"Brak dostępu do pliku: {e.filename}\nZamknij 4Life Companion i spróbuj ponownie."}
         except Exception as e:  # pokazujemy błąd zamiast cichego zamknięcia
             return {"ok": False, "error": f"Instalacja nie powiodła się:\n{e}"}
 
@@ -273,7 +273,7 @@ def tk_main():
 
 
 def main():
-    if "--test" in sys.argv:  # MTACompanionSetup.exe --test FOLDER: instalacja bez okna, kod wyjścia 0/1
+    if "--test" in sys.argv:  # 4LifeCompanionSetup.exe --test FOLDER: instalacja bez okna, kod wyjścia 0/1
         try:
             install(sys.argv[sys.argv.index("--test") + 1], {"test": True}, lambda p, t: None)
             sys.exit(0)

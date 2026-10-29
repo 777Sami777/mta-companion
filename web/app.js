@@ -1,4 +1,4 @@
-// MTA Companion: jedna strona, dane z Pythona (window.pywebview.api)
+// 4Life Companion: jedna strona, dane z Pythona (window.pywebview.api)
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
 const pln = v => Math.round(v).toLocaleString("pl-PL") + " PLN";
@@ -240,6 +240,18 @@ function panZoom() {
   apply();
 }
 
+// ---------- ceny surowców (forum serwera) ----------
+const price = v => v.toLocaleString("pl-PL", {minimumFractionDigits: 2, maximumFractionDigits: 2});
+async function refreshPrices() {
+  const d = await api.prices();
+  if (!d) { $("#prices").innerHTML = `<li class="empty">Nie udało się pobrać cen z forum</li>`; return; }
+  const old = Date.now() / 1000 - d.at > 1800;
+  $("#price-at").textContent = `· ${old ? "z " + day(d.at) + " " : ""}${hm(d.at)}`;
+  $("#prices").innerHTML = d.items.map(p => `<li class="price"><span class="p-ico">${p.icon ? `<img data-icon="${esc(p.icon)}" alt="">` : ""}</span>
+    <span><span class="p-name">${esc(p.name)}</span><b>${price(p.price)}</b><small>${esc(p.unit)}</small></span></li>`).join("");
+  $("#prices").querySelectorAll("img[data-icon]").forEach(async i => { const src = await api.wiki_img(i.dataset.icon); if (src) i.src = src; });
+}
+
 // ---------- aktualizacje ----------
 let update = null;
 async function checkUpdate(manual) {
@@ -280,5 +292,7 @@ window.addEventListener("pywebviewready", async () => {
   $("#upd-info").textContent = "Wersja " + await api.app_version();
   await refresh();
   setInterval(refresh, 60000);
+  refreshPrices();
+  setInterval(refreshPrices, 10 * 60000); // ceny na forum zmieniają się w ciągu dnia
   checkUpdate(false);
 });

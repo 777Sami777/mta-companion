@@ -1,11 +1,11 @@
-"""MTA Companion: sesje, zarobki, znajomi i mapa dla serwera 4Life MTA (pywebview + WebView2).
+"""4Life Companion: sesje, zarobki, znajomi i mapa dla serwera 4Life MTA (pywebview + WebView2).
 
 Wszystko zostaje na komputerze użytkownika. Czytamy tylko:
 - logi, które klient MTA sam zapisuje (MTA\\logs\\console.log*),
 - cache zasobów serwera, który MTA już pobrało (mods\\deathmatch\\resources) — w miejscu, bez kopiowania,
 - publiczny status serwera (zapytanie ASE, to samo co przeglądarka serwerów w MTA),
 - publiczną mapę z wiki serwera (giełdy, salony, prace…), zapamiętaną na dysku na wypadek braku sieci.
-Historię zapisujemy w %APPDATA%\\MTACompanion. Gra nie jest dotykana.
+Historię zapisujemy w %APPDATA%\\4LifeCompanion. Gra nie jest dotykana.
 """
 import datetime as dt
 import glob
@@ -21,15 +21,15 @@ import webview
 
 import wiki
 
-APP_NAME = "MTA Companion"
-APP_VERSION = "1.0.0"
+APP_NAME = "4Life Companion"
+APP_VERSION = "1.0.1"
 GITHUB_REPO = "777Sami777/mta-companion"  # "login/repozytorium": tu aktualizator szuka najnowszego wydania
-EXE_NAME = "MTACompanion.exe"
+EXE_NAME = "4LifeCompanion.exe"
 NO_WINDOW = 0x08000000
 SERVER = ("s.mta4life.pl", 22110)
 APPDATA = os.environ.get("APPDATA", os.path.expanduser("~"))
-DATA_DIR = os.path.join(APPDATA, "MTACompanion")
-OLD_DATA_DIR = os.path.join(APPDATA, "4LifeCompanion")  # poprzednia nazwa: przenosimy historię
+DATA_DIR = os.path.join(APPDATA, "4LifeCompanion")
+OLD_DATA_DIR = os.path.join(APPDATA, "MTACompanion")  # nazwa z wersji 1.0.0: przenosimy historię
 HISTORY_FILE = os.path.join(DATA_DIR, "historia.json")
 USER_FILE = os.path.join(DATA_DIR, "dane.json")
 LINE = re.compile(r"^\[(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)\] \[Output\] : (.*)$")
@@ -236,6 +236,16 @@ class Api:
         return {"found": os.path.isdir(CACHE), "map": map_data_url(hq),
                 "points": scan_places(CACHE) if os.path.isdir(CACHE) else []}
 
+    def prices(self):
+        """Ceny surowców z forum: zawsze świeże, a bez sieci ostatnie zapisane (z godziną pobrania)."""
+        path = os.path.join(DATA_DIR, "ceny_surowcow.json")
+        try:
+            data = {"at": time.time(), "items": wiki.fetch_prices()}
+            save_json(path, data)
+            return data
+        except Exception:
+            return load_json(path, None)
+
     def wiki(self, kind):
         """Dane z wiki serwera zapamiętane na dysku na dobę; bez sieci zostaje ostatnia wersja."""
         path = os.path.join(DATA_DIR, f"wiki_{kind}.json")
@@ -251,12 +261,21 @@ class Api:
 
     def wiki_img(self, path):
         """Ikona/obrazek z wiki: pobierany raz do %APPDATA%, potem czytany z dysku."""
-        if not isinstance(path, str) or not wiki.IMG_PATH.match(path) or ".." in path:
+        # dozwolone tylko ścieżki z wiki albo ikony surowców z forum
+        if not isinstance(path, str) or ".." in path:
             return None
-        local = os.path.join(DATA_DIR, "wiki_img", *path.strip("/").split("/"))
+        if path.startswith(wiki.FORUM_ICONS):
+            url, rel = path, "forum/" + path[len(wiki.FORUM_ICONS):]
+        elif wiki.IMG_PATH.match(path):
+            url, rel = wiki.WIKI + path, path.strip("/")
+        else:
+            return None
+        if not wiki.IMG_PATH.match("/" + rel):
+            return None
+        local = os.path.join(DATA_DIR, "wiki_img", *rel.split("/"))
         if not os.path.isfile(local):
             try:
-                data = wiki.get(wiki.WIKI + path, binary=True)
+                data = wiki.get(url, binary=True)
             except Exception:
                 return None
             os.makedirs(os.path.dirname(local), exist_ok=True)
@@ -298,15 +317,16 @@ class Api:
         with open(new_exe, "wb") as f:
             f.write(data)
         exe = sys.executable
+        name = os.path.basename(exe)  # instalacje 1.0.0 mają jeszcze plik MTACompanion.exe
         bat = os.path.join(tmp, "aktualizuj.bat")
         with open(bat, "w", encoding="mbcs") as f:
             # ping zamiast timeout: bez konsoli timeout kończy się od razu
             f.write(f"""@echo off
 set n=0
 :wait
-tasklist /fi "imagename eq {EXE_NAME}" | find /i "{EXE_NAME}" >nul || goto copy
+tasklist /fi "imagename eq {name}" | find /i "{name}" >nul || goto copy
 set /a n+=1
-if %n% geq 40 taskkill /f /im {EXE_NAME} >nul 2>&1
+if %n% geq 40 taskkill /f /im {name} >nul 2>&1
 ping -n 2 127.0.0.1 >nul
 goto wait
 :copy
@@ -355,6 +375,19 @@ def _selftest():
     print("selftest ok")
 
 
+def dark_title_bar(window):
+    """Ciemny pasek tytułu Windows zamiast białego. Okno zostaje zwykłe: przesuwanie, zmiana rozmiaru, przyciąganie."""
+    import ctypes
+    try:
+        hwnd = window.native.Handle.ToInt32()
+        dwm = ctypes.windll.dwmapi
+        on, color = ctypes.c_int(1), ctypes.c_int(0x24140A)  # COLORREF 0x00BBGGRR = #0a1424
+        dwm.DwmSetWindowAttribute(hwnd, 20, ctypes.byref(on), 4)  # DWMWA_USE_IMMERSIVE_DARK_MODE (Windows 10/11)
+        dwm.DwmSetWindowAttribute(hwnd, 35, ctypes.byref(color), 4)  # DWMWA_CAPTION_COLOR (tylko Windows 11)
+    except Exception:
+        return  # starszy Windows: zostaje zwykły pasek
+
+
 def version_tuple(v):
     return tuple(int(x) for x in re.findall(r"\d+", str(v))[:3])
 
@@ -365,8 +398,9 @@ def main():
     if os.path.isdir(OLD_DATA_DIR) and not os.path.exists(DATA_DIR):
         os.rename(OLD_DATA_DIR, DATA_DIR)
     os.makedirs(DATA_DIR, exist_ok=True)
-    webview.create_window(APP_NAME, resource("web", "index.html"), js_api=Api(), width=1280, height=820,
-                          min_size=(900, 600), background_color="#0b0f14")
+    win = webview.create_window(APP_NAME, resource("web", "index.html"), js_api=Api(), width=1280, height=820,
+                                min_size=(900, 600), background_color="#0a1424")
+    win.events.shown += lambda: dark_title_bar(win)
     webview.start(private_mode=False, storage_path=os.path.join(DATA_DIR, "webview"))
 
 
